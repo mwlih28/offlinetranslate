@@ -45,6 +45,17 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^5.0.0
 
+# Gerçek cihazlarda model indirirken çıkan NullPointerException'ın native
+# stack trace'ini görebilmek için google_mlkit_commons'ın yerel, yamalı
+# bir kopyasını kullanıyoruz (bkz. third_party/google_mlkit_commons).
+# Orijinal pub.dev sürümü hatayı Flutter'a sadece e.toString() ile
+# iletiyordu; yama, Log.getStackTraceString(e)'i PlatformException'ın
+# `details` alanına ekliyor. Sadece teşhis amaçlı — pub.dev sürümüyle
+# API'si birebir aynı.
+dependency_overrides:
+  google_mlkit_commons:
+    path: third_party/google_mlkit_commons
+
 flutter:
   # Material 3 tasarım standartlarını kullanır.
   uses-material-design: true

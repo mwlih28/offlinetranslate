@@ -301,20 +301,20 @@ class TranslationProvider extends ChangeNotifier {
   /// Bir hatayı kullanıcıya gösterilecek okunabilir bir metne çevirir.
   ///
   /// [PlatformException] ise (ML Kit'in native tarafından gelen hatalar hep
-  /// bu tiptedir) mesajın yanına native `stacktrace`'in İLK BİRKAÇ SATIRINI
-  /// da ekler. Bu, hatanın gerçekte HANGİ native sınıf/metotta oluştuğunu
-  /// gösterir — sadece exception mesajına bakarak kök nedeni tahmin etmek
-  /// (ör. "Play Hizmetleri eksik" varsayımı) yanlış çıkabiliyor; asıl
-  /// stack trace kesin teşhis için gerekli.
+  /// bu tiptedir) mesajın yanına native stack trace'in İLK BİRKAÇ SATIRINI
+  /// da ekler. NOT: pub.dev'deki orijinal `google_mlkit_commons` hatayı
+  /// Flutter'a `stacktrace` alanı OLMADAN iletiyordu (sadece `e.toString()`);
+  /// bu yüzden `third_party/google_mlkit_commons`'taki yamalı kopyada
+  /// stack trace artık `details` alanına ekleniyor — asıl kaynağımız o.
   String _describeError(Object error) {
     if (error is PlatformException) {
       final base = error.message ?? error.code;
-      final trace = error.stacktrace;
+      final trace = (error.details as String?) ?? error.stacktrace;
       if (trace == null || trace.isEmpty) return base;
 
-      // İlk 6 satır genelde hatayı fırlatan native sınıf/metodu göstermeye
+      // İlk 8 satır genelde hatayı fırlatan native sınıf/metodu göstermeye
       // yeter; tamamını göstermek banner'ı çok büyütür.
-      final firstLines = trace.split('\n').take(6).join('\n');
+      final firstLines = trace.split('\n').take(8).join('\n');
       return '$base\n\n[Native stack trace]\n$firstLines';
     }
     return error.toString();
