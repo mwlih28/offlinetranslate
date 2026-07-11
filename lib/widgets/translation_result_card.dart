@@ -5,13 +5,13 @@ import 'package:flutter/services.dart'; // Clipboard için
 import 'package:provider/provider.dart';
 
 import '../providers/translation_provider.dart';
+import 'frosted_card.dart';
 
-/// ALT KISIM: Çeviri sonucunun gösterildiği alan.
+/// ALT KISIM: Çeviri sonucunun gösterildiği buzlu cam kart.
 ///
-/// Hafif gradyanlı, gölgeli bir kart içinde çeviri sonucu ve sağ üstte
-/// "Metni Kopyala" butonu bulunur. Sonuç her güncellendiğinde yumuşak
-/// bir fade-in ile belirir; kart, metin uzunluğuna göre sıçramadan
-/// büyüyüp küçülür.
+/// Başlıkta gradyan renkli hedef dil adı; çeviri sürerken kartın üstünde
+/// ince bir gradyan ilerleme şeridi belirir. Sonuç her güncellendiğinde
+/// yumuşak fade ile geçer; kart yüksekliği sıçramadan uyarlanır.
 class TranslationResultCard extends StatelessWidget {
   const TranslationResultCard({super.key});
 
@@ -22,89 +22,100 @@ class TranslationResultCard extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final result = provider.translatedText;
 
-    return Container(
-      width: double.infinity,
-      constraints: const BoxConstraints(minHeight: 160),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            colorScheme.surfaceContainerHighest,
-            colorScheme.surfaceContainerHigh,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: colorScheme.shadow.withValues(alpha: 0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
+    return FrostedCard(
+      padding: EdgeInsets.zero,
+      borderRadius: 24,
+      elevated: true,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Başlık satırı: hedef dil adı + kopyala butonu
-          Row(
-            children: [
-              Text(
-                '${provider.targetLanguage.flag} '
-                '${provider.targetLanguage.displayName}',
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: colorScheme.primary,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const Spacer(),
+          // Çeviri sürerken üst kenarda beliren ince gradyan şerit.
+          AnimatedOpacity(
+            opacity: provider.isTranslating ? 1 : 0,
+            duration: const Duration(milliseconds: 250),
+            child: Container(
+              height: 3,
+              decoration: const BoxDecoration(gradient: kAccentGradient),
+            ),
+          ),
 
-              // Çeviri sürerken küçük bir yükleniyor göstergesi
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 150),
-                transitionBuilder: (child, animation) => FadeTransition(
-                  opacity: animation,
-                  child: ScaleTransition(scale: animation, child: child),
-                ),
-                child: provider.isTranslating
-                    ? const Padding(
-                        key: ValueKey('translating'),
-                        padding: EdgeInsets.only(right: 8),
-                        child: SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            strokeCap: StrokeCap.round,
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 150),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 8, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Başlık satırı: gradyan hedef dil adı + kopyala butonu
+                  Row(
+                    children: [
+                      Text(provider.targetLanguage.flag,
+                          style: const TextStyle(fontSize: 16)),
+                      const SizedBox(width: 6),
+                      // Dil adına gradyan renk uygular.
+                      ShaderMask(
+                        shaderCallback: (bounds) =>
+                            kAccentGradient.createShader(bounds),
+                        child: Text(
+                          provider.targetLanguage.displayName,
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: Colors.white, // ShaderMask için taban.
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.4,
                           ),
                         ),
-                      )
-                    : const SizedBox.shrink(key: ValueKey('idle')),
-              ),
+                      ),
+                      const Spacer(),
 
-              // "Metni Kopyala" butonu — sadece sonuç varken aktif.
-              _CopyButton(text: result),
-            ],
-          ),
-          const SizedBox(height: 4),
+                      // "Metni Kopyala" butonu — sadece sonuç varken aktif.
+                      _CopyButton(text: result),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
 
-          // Çeviri sonucu (veya yönlendirici yer tutucu metin) — her
-          // değişimde yumuşak fade, kart yüksekliği sıçramadan uyarlanır.
-          AnimatedSize(
-            duration: const Duration(milliseconds: 200),
-            alignment: Alignment.topLeft,
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 250),
-              child: Text(
-                result.isEmpty ? 'Çeviri burada görünecek...' : result,
-                key: ValueKey(result),
-                style: TextStyle(
-                  fontSize: 18,
-                  color: result.isEmpty
-                      ? colorScheme.onSurfaceVariant.withValues(alpha: 0.6)
-                      : colorScheme.onSurface,
-                ),
+                  // Çeviri sonucu (veya zarif boş durum) — her değişimde
+                  // yumuşak fade, kart yüksekliği sıçramadan uyarlanır.
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 200),
+                    alignment: Alignment.topLeft,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 250),
+                      child: result.isEmpty
+                          ? Padding(
+                              key: const ValueKey('empty'),
+                              padding: const EdgeInsets.only(top: 12),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.translate,
+                                    size: 18,
+                                    color: colorScheme.onSurfaceVariant
+                                        .withValues(alpha: 0.4),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Çeviri burada görünecek...',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      color: colorScheme.onSurfaceVariant
+                                          .withValues(alpha: 0.5),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : Text(
+                              result,
+                              key: ValueKey(result),
+                              style: TextStyle(
+                                fontSize: 19,
+                                height: 1.45,
+                                color: colorScheme.onSurface,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

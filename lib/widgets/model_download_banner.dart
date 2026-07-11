@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/translation_provider.dart';
+import 'frosted_card.dart';
 
 /// DİL İNDİRME YÖNETİMİ: Model indirme uyarı bandı (banner).
 ///
 /// Seçili dil çiftinin modelleri cihazda hazırsa HİÇBİR ŞEY göstermez.
-/// Modellerden en az biri eksikse: uyarı mesajı + "İndir" butonu gösterir.
-/// İndirme sürerken ilerleme göstergesi (spinner) gösterir.
+/// Modellerden en az biri eksikse: buzlu cam kart içinde uyarı mesajı +
+/// gradyan "İndir" butonu gösterir. İndirme sürerken spinner gösterir.
 ///
 /// Görünür/gizli geçişi ile içindeki ikon/aksiyon değişimleri ani değil,
 /// [AnimatedSize] + [AnimatedSwitcher] ile yumuşak geçişlidir.
@@ -46,68 +47,70 @@ class ModelDownloadBanner extends StatelessWidget {
         duration: const Duration(milliseconds: 250),
         child: !visible
             ? const SizedBox.shrink(key: ValueKey('hidden'))
-            : Container(
+            : Padding(
                 key: const ValueKey('visible'),
-                margin: const EdgeInsets.only(top: 12),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: colorScheme.secondaryContainer,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  children: [
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      transitionBuilder: (child, animation) => FadeTransition(
-                        opacity: animation,
-                        child: ScaleTransition(scale: animation, child: child),
+                padding: const EdgeInsets.only(top: 12),
+                child: FrostedCard(
+                  padding: const EdgeInsets.all(12),
+                  borderRadius: 20,
+                  tint: colorScheme.primary.withValues(alpha: 0.10),
+                  child: Row(
+                    children: [
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        transitionBuilder: (child, animation) =>
+                            FadeTransition(
+                          opacity: animation,
+                          child:
+                              ScaleTransition(scale: animation, child: child),
+                        ),
+                        child: Icon(
+                          isDownloading
+                              ? Icons.downloading
+                              : Icons.cloud_download_outlined,
+                          key: ValueKey(isDownloading),
+                          color: colorScheme.primary,
+                        ),
                       ),
-                      child: Icon(
-                        isDownloading
-                            ? Icons.downloading
-                            : Icons.cloud_download_outlined,
-                        key: ValueKey(isDownloading),
-                        color: colorScheme.onSecondaryContainer,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
+                      const SizedBox(width: 12),
 
-                    // Bilgilendirme metni
-                    Expanded(
-                      child: Text(
-                        isChecking
-                            ? 'Dil paketleri kontrol ediliyor...'
-                            : isDownloading
-                                ? 'Dil paketi indiriliyor, lütfen bekleyin...'
-                                : 'Offline çeviri için ${missing.join(" ve ")} '
-                                    'dil paketi indirilmeli.',
-                        style:
-                            TextStyle(color: colorScheme.onSecondaryContainer),
+                      // Bilgilendirme metni
+                      Expanded(
+                        child: Text(
+                          isChecking
+                              ? 'Dil paketleri kontrol ediliyor...'
+                              : isDownloading
+                                  ? 'Dil paketi indiriliyor, lütfen bekleyin...'
+                                  : 'Offline çeviri için '
+                                      '${missing.join(" ve ")} dil paketi '
+                                      'indirilmeli.',
+                          style: TextStyle(color: colorScheme.onSurface),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
+                      const SizedBox(width: 8),
 
-                    // İndirme butonu / ilerleme göstergesi
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      child: (isDownloading || isChecking)
-                          ? const SizedBox(
-                              key: ValueKey('progress'),
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                strokeCap: StrokeCap.round,
+                      // Gradyan indirme butonu / ilerleme göstergesi
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        child: (isDownloading || isChecking)
+                            ? const SizedBox(
+                                key: ValueKey('progress'),
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  strokeCap: StrokeCap.round,
+                                ),
+                              )
+                            : GradientButton(
+                                key: const ValueKey('download-button'),
+                                icon: Icons.download,
+                                label: 'İndir',
+                                onPressed: provider.downloadMissingModels,
                               ),
-                            )
-                          : FilledButton.icon(
-                              key: const ValueKey('download-button'),
-                              icon: const Icon(Icons.download, size: 18),
-                              label: const Text('İndir'),
-                              onPressed: provider.downloadMissingModels,
-                            ),
-                    ),
-                  ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
       ),

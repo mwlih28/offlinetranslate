@@ -3,10 +3,16 @@ import 'package:provider/provider.dart';
 
 import '../models/language.dart';
 import '../providers/translation_provider.dart';
+import 'frosted_card.dart';
+import 'language_picker_sheet.dart';
+import 'tap_scale.dart';
 
 /// ÜST KISIM: Dil seçim satırı.
 ///
-/// [Kaynak Dil Dropdown] — [⇄ Swap Butonu] — [Hedef Dil Dropdown]
+/// [Kaynak Dil Pili] — [⇄ Gradyan Swap Butonu] — [Hedef Dil Pili]
+///
+/// Piller buzlu cam kartlardır; dokununca özel tasarım
+/// [LanguagePickerSheet] açılır (varsayılan dropdown menüsü yerine).
 class LanguageSelector extends StatelessWidget {
   const LanguageSelector({super.key});
 
@@ -17,31 +23,37 @@ class LanguageSelector extends StatelessWidget {
 
     return Row(
       children: [
-        // Kaynak dil seçimi
+        // Kaynak dil pili
         Expanded(
-          child: _LanguageDropdown(
-            label: 'Kaynak Dil',
-            selected: provider.sourceLanguage,
-            onChanged: (lang) {
-              if (lang != null) provider.setSourceLanguage(lang);
-            },
+          child: _LanguagePill(
+            label: 'Kaynak',
+            language: provider.sourceLanguage,
+            onTap: () => LanguagePickerSheet.show(
+              context,
+              title: 'Kaynak Dil',
+              selected: provider.sourceLanguage,
+              onSelected: provider.setSourceLanguage,
+            ),
           ),
         ),
 
-        // Dilleri takas eden (swap) buton — dönüş + "pop" animasyonlu.
+        // Dilleri takas eden gradyan buton (dönüş + pop animasyonlu)
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
           child: _AnimatedSwapButton(onPressed: provider.swapLanguages),
         ),
 
-        // Hedef dil seçimi
+        // Hedef dil pili
         Expanded(
-          child: _LanguageDropdown(
-            label: 'Hedef Dil',
-            selected: provider.targetLanguage,
-            onChanged: (lang) {
-              if (lang != null) provider.setTargetLanguage(lang);
-            },
+          child: _LanguagePill(
+            label: 'Hedef',
+            language: provider.targetLanguage,
+            onTap: () => LanguagePickerSheet.show(
+              context,
+              title: 'Hedef Dil',
+              selected: provider.targetLanguage,
+              onSelected: provider.setTargetLanguage,
+            ),
           ),
         ),
       ],
@@ -49,72 +61,79 @@ class LanguageSelector extends StatelessWidget {
   }
 }
 
-/// Tek bir dil seçim dropdown'ı. Material 3 görünümü için
-/// [InputDecorator] ile çerçeveli bir kutu içine yerleştirilmiştir.
-///
-/// Seçili dil değiştiğinde kutunun tamamı [AnimatedSwitcher] ile
-/// fade+kayma efektiyle geçiş yapar (ani değişim yerine).
-class _LanguageDropdown extends StatelessWidget {
+/// Tek bir dil pili: üstte küçük etiket ("Kaynak"/"Hedef"), altında
+/// bayrak + dil adı. Dil değişince içerik fade+kayma ile geçiş yapar.
+class _LanguagePill extends StatelessWidget {
   final String label;
-  final AppLanguage selected;
-  final ValueChanged<AppLanguage?> onChanged;
+  final AppLanguage language;
+  final VoidCallback onTap;
 
-  const _LanguageDropdown({
+  const _LanguagePill({
     required this.label,
-    required this.selected,
-    required this.onChanged,
+    required this.language,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 250),
-      transitionBuilder: (child, animation) => FadeTransition(
-        opacity: animation,
-        child: SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(0.08, 0),
-            end: Offset.zero,
-          ).animate(animation),
-          child: child,
-        ),
-      ),
-      child: InputDecorator(
-        key: ValueKey(selected.mlkitLanguage),
-        decoration: InputDecoration(
-          labelText: label,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        ),
-        child: DropdownButtonHideUnderline(
-          child: DropdownButton<AppLanguage>(
-            value: selected,
-            isExpanded: true,
-            borderRadius: BorderRadius.circular(16),
-            items: supportedLanguages
-                .map(
-                  (lang) => DropdownMenuItem<AppLanguage>(
-                    value: lang,
+    final theme = Theme.of(context);
+
+    return TapScale(
+      onTap: onTap,
+      child: FrostedCard(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        borderRadius: 20,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label.toUpperCase(),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.2,
+              ),
+            ),
+            const SizedBox(height: 4),
+
+            // Seçili dil — değişince yumuşak geçiş.
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0.10, 0),
+                    end: Offset.zero,
+                  ).animate(animation),
+                  child: child,
+                ),
+              ),
+              child: Row(
+                key: ValueKey(language.mlkitLanguage),
+                children: [
+                  Text(language.flag, style: const TextStyle(fontSize: 20)),
+                  const SizedBox(width: 8),
+                  Expanded(
                     child: Text(
-                      '${lang.flag} ${lang.displayName}',
+                      language.displayName,
                       overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                   ),
-                )
-                .toList(),
-            onChanged: onChanged,
-          ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// Dilleri takas eden buton. Basıldığında 180° döner ve kısa bir
-/// büyüyüp-küçülme ("pop") efekti yapar.
+/// Dilleri takas eden gradyan dairesel buton. Basıldığında 180° döner
+/// ve kısa bir büyüyüp-küçülme ("pop") efekti yapar.
 class _AnimatedSwapButton extends StatefulWidget {
   final VoidCallback onPressed;
 
@@ -139,12 +158,12 @@ class _AnimatedSwapButtonState extends State<_AnimatedSwapButton>
     );
     _scale = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween(begin: 1.0, end: 1.2)
+        tween: Tween(begin: 1.0, end: 1.18)
             .chain(CurveTween(curve: Curves.easeOut)),
         weight: 50,
       ),
       TweenSequenceItem(
-        tween: Tween(begin: 1.2, end: 1.0)
+        tween: Tween(begin: 1.18, end: 1.0)
             .chain(CurveTween(curve: Curves.easeIn)),
         weight: 50,
       ),
@@ -166,16 +185,33 @@ class _AnimatedSwapButtonState extends State<_AnimatedSwapButton>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedRotation(
-      turns: _turns,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOutBack,
-      child: ScaleTransition(
-        scale: _scale,
-        child: IconButton.filledTonal(
-          tooltip: 'Dilleri değiştir',
-          icon: const Icon(Icons.swap_horiz),
-          onPressed: _handleTap,
+    return Tooltip(
+      message: 'Dilleri değiştir',
+      child: GestureDetector(
+        onTap: _handleTap,
+        child: AnimatedRotation(
+          turns: _turns,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutBack,
+          child: ScaleTransition(
+            scale: _scale,
+            child: Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: kAccentGradient,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF6366F1).withValues(alpha: 0.5),
+                    blurRadius: 18,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.swap_horiz, color: Colors.white),
+            ),
+          ),
         ),
       ),
     );

@@ -26,6 +26,10 @@ class OfflineTranslateApp extends StatelessWidget {
     final lightBase = ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
+      // Canlı arka planın (AnimatedBackground) zemin rengiyle uyumlu.
+      scaffoldBackgroundColor: const Color(0xFFEEF1FF),
+      // Dokunuşlarda modern parıltı efekti.
+      splashFactory: InkSparkle.splashFactory,
     );
     final darkBase = ThemeData(
       useMaterial3: true,
@@ -33,6 +37,8 @@ class OfflineTranslateApp extends StatelessWidget {
         seedColor: Colors.indigo,
         brightness: Brightness.dark,
       ),
+      scaffoldBackgroundColor: const Color(0xFF0B1020),
+      splashFactory: InkSparkle.splashFactory,
     );
 
     return ChangeNotifierProvider(
