@@ -43,3 +43,22 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+// google_mlkit_translation (com.google.mlkit:translate:17.0.3) pins old
+// versions of Google Play Services' shared/foundational libraries.
+// Android 14+ devices have been observed failing model downloads with
+// "NullPointerException: getClass() on a null object reference" — a
+// known signature of Play Services' reflection-based Task/receiver code
+// breaking on newer Android versions (see googlesamples/mlkit#744, an
+// unresolved Android 14 broadcast-receiver-flag issue). These shared
+// libraries get patched independently of the mlkit:translate artifact
+// itself (unchanged since Aug 2024), so we force newer versions here.
+configurations.all {
+    resolutionStrategy {
+        force(
+            "com.google.android.gms:play-services-basement:18.10.0",
+            "com.google.android.gms:play-services-base:18.10.0",
+            "com.google.android.gms:play-services-tasks:18.4.1",
+        )
+    }
+}
