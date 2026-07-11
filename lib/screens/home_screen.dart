@@ -2,29 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/translation_provider.dart';
-import '../widgets/animated_background.dart';
-import '../widgets/frosted_card.dart';
 import '../widgets/language_selector.dart';
 import '../widgets/model_download_banner.dart';
-import '../widgets/model_manager_sheet.dart';
+import '../widgets/offline_badge.dart';
 import '../widgets/source_text_field.dart';
-import '../widgets/tap_scale.dart';
 import '../widgets/translation_result_card.dart';
 
-/// ANA EKRAN: Tüm arayüz parçalarını bir araya getirir.
+/// ÇEVİRİ SEKMESİ (ana ekran).
 ///
 /// Düzen (yukarıdan aşağıya):
-///  1. Özel başlık satırı (gradyan "Offline Çeviri" + paket yönetim butonu)
-///  2. Dil seçimi satırı (kaynak ⇄ hedef)
-///  3. Model indirme banner'ı (gerekliyse)
-///  4. Kaynak metin girişi (temizleme butonlu)
-///  5. Çeviri sonucu kartı (kopyalama butonlu)
+///  1. Başlık ("Offline Çeviri")
+///  2. Dil seçimi satırı (kaynak ⇄ hedef çipleri)
+///  3. Model indirme banner'ı (gerekliyse) + hata mesajı
+///  4. Bembeyaz kaynak metin kartı
+///  5. Açık lavanta çeviri sonucu kartı
+///  6. Yeşil "Çevrimdışı Modu Aktif" rozeti
 ///
-/// Arkada [AnimatedBackground] (süzülen ışık küreleri) durur; tüm kartlar
-/// buzlu cam ([FrostedCard]) görünümündedir. Bölümler ekran açılırken
-/// KADEMELİ olarak (her biri bir öncekinden biraz sonra) fade+kayma ile
-/// belirir — tek [AnimationController]'dan [Interval] eğrileriyle türetilir
-/// ve Provider güncellemelerinden etkilenmez (bir kez oynar).
+/// Bölümler ekran açılırken KADEMELİ olarak (her biri bir öncekinden
+/// biraz sonra) fade+kayma ile belirir — tek [AnimationController]'dan
+/// [Interval] eğrileriyle türetilir ve yalnızca bir kez oynar.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -74,80 +70,52 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Scaffold(
-      // Zemin AnimatedBackground tarafından çizilir.
-      body: AnimatedBackground(
-        child: SafeArea(
-          // Küçük ekranlarda klavye açılınca taşmayı önlemek için
-          // kaydırılabilir.
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // 1) Özel başlık satırı
-                _staggered(
-                  0,
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(4, 4, 0, 20),
-                    child: Row(
-                      children: [
-                        // Gradyan renkli uygulama başlığı
-                        ShaderMask(
-                          shaderCallback: (bounds) =>
-                              kAccentGradient.createShader(bounds),
-                          child: Text(
-                            'Offline Çeviri',
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              color: Colors.white, // ShaderMask tabanı.
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.5,
-                            ),
-                          ),
-                        ),
-                        const Spacer(),
-
-                        // Dil paketlerini yönetme (indir/sil) butonu
-                        TapScale(
-                          onTap: () => ModelManagerSheet.show(context),
-                          child: Tooltip(
-                            message: 'Dil paketlerini yönet',
-                            child: FrostedCard(
-                              padding: const EdgeInsets.all(10),
-                              borderRadius: 16,
-                              child: Icon(
-                                Icons.download_for_offline_outlined,
-                                color: theme.colorScheme.primary,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+    return SafeArea(
+      // Küçük ekranlarda klavye açılınca taşmayı önlemek için
+      // kaydırılabilir.
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 1) Başlık
+            _staggered(
+              0,
+              const Padding(
+                padding: EdgeInsets.fromLTRB(4, 4, 4, 18),
+                child: Text(
+                  'Offline Çeviri',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
                   ),
                 ),
-
-                // 2) Dil seçimi: [Kaynak] ⇄ [Hedef]
-                _staggered(1, const LanguageSelector()),
-
-                // 3) Model eksikse indirme uyarısı + "İndir" butonu
-                _staggered(2, const ModelDownloadBanner()),
-
-                // 4) Hata mesajı (varsa)
-                const _ErrorMessage(),
-                const SizedBox(height: 16),
-
-                // 5) Çevrilecek metin girişi
-                _staggered(3, const SourceTextField()),
-                const SizedBox(height: 16),
-
-                // 6) Çeviri sonucu
-                _staggered(4, const TranslationResultCard()),
-              ],
+              ),
             ),
-          ),
+
+            // 2) Dil seçimi: [Kaynak] ⇄ [Hedef]
+            _staggered(1, const LanguageSelector()),
+
+            // 3) Model eksikse indirme uyarısı + "İndir" butonu
+            _staggered(2, const ModelDownloadBanner()),
+
+            // 4) Hata mesajı (varsa)
+            const _ErrorMessage(),
+            const SizedBox(height: 16),
+
+            // 5) Çevrilecek metin girişi (bembeyaz kart)
+            _staggered(3, const SourceTextField()),
+            const SizedBox(height: 14),
+
+            // 6) Çeviri sonucu (lavanta kart)
+            _staggered(4, const TranslationResultCard()),
+            const SizedBox(height: 18),
+
+            // 7) Çevrimdışı durum rozeti (ortalanmış)
+            _staggered(5, const Center(child: OfflineBadge())),
+          ],
         ),
       ),
     );
@@ -164,7 +132,6 @@ class _ErrorMessage extends StatelessWidget {
   Widget build(BuildContext context) {
     final error =
         context.select<TranslationProvider, String?>((p) => p.errorMessage);
-    final colorScheme = Theme.of(context).colorScheme;
 
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 250),
@@ -180,27 +147,28 @@ class _ErrorMessage extends StatelessWidget {
       ),
       child: error == null
           ? const SizedBox.shrink(key: ValueKey('no-error'))
-          : Padding(
+          : Container(
               key: const ValueKey('error'),
-              padding: const EdgeInsets.only(top: 12),
-              child: FrostedCard(
-                padding: const EdgeInsets.all(12),
-                borderRadius: 20,
-                tint: colorScheme.errorContainer.withValues(alpha: 0.65),
-                child: Row(
-                  children: [
-                    Icon(Icons.error_outline,
-                        color: colorScheme.onErrorContainer),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        error,
-                        style:
-                            TextStyle(color: colorScheme.onErrorContainer),
-                      ),
-                    ),
-                  ],
+              margin: const EdgeInsets.only(top: 12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF5C2B33),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: const Color(0xFFFF6B6B).withValues(alpha: 0.5),
                 ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.error_outline, color: Color(0xFFFFB4B4)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      error,
+                      style: const TextStyle(color: Color(0xFFFFD9D9)),
+                    ),
+                  ),
+                ],
               ),
             ),
     );

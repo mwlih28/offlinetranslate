@@ -4,7 +4,7 @@ publish_to: "none" # Bu proje pub.dev'e yayınlanmayacak.
 version: 1.0.0+1
 
 environment:
-  sdk: ">=3.6.0 <4.0.0"
+  sdk: ">=3.10.0 <4.0.0"
 
 dependencies:
   flutter:
@@ -26,6 +26,12 @@ dependencies:
   # gömülür; main.dart'ta allowRuntimeFetching=false ile çalışma zamanında
   # ASLA internet denenmeyeceği garanti edilir (offline uyumluluk).
   google_fonts: ^6.2.1
+
+  # Favori çevirilerin cihazda kalıcı saklanması (tamamen offline).
+  shared_preferences: ^2.5.5
+
+  # Çeviri sonucunu diğer uygulamalarla paylaşma (sistem paylaşım menüsü).
+  share_plus: ^13.2.0
 
 dev_dependencies:
   flutter_test:

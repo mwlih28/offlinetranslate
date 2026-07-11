@@ -3,16 +3,17 @@ import 'package:provider/provider.dart';
 
 import '../models/language.dart';
 import '../providers/translation_provider.dart';
-import 'frosted_card.dart';
+import '../theme/app_colors.dart';
 import 'language_picker_sheet.dart';
 import 'tap_scale.dart';
 
 /// ÜST KISIM: Dil seçim satırı.
 ///
-/// [Kaynak Dil Pili] — [⇄ Gradyan Swap Butonu] — [Hedef Dil Pili]
+/// [Kaynak Dil Çipi] — [⇄ Swap] — [Hedef Dil Çipi]
 ///
-/// Piller buzlu cam kartlardır; dokununca özel tasarım
-/// [LanguagePickerSheet] açılır (varsayılan dropdown menüsü yerine).
+/// Çipler koyu füme (slate) yüzeylerdir; büyük dil adı + altında dilin
+/// kendi dilindeki adı ve bayrak gösterirler. Dokununca özel tasarım
+/// [LanguagePickerSheet] açılır.
 class LanguageSelector extends StatelessWidget {
   const LanguageSelector({super.key});
 
@@ -23,10 +24,9 @@ class LanguageSelector extends StatelessWidget {
 
     return Row(
       children: [
-        // Kaynak dil pili
+        // Kaynak dil çipi
         Expanded(
-          child: _LanguagePill(
-            label: 'Kaynak',
+          child: _LanguageChip(
             language: provider.sourceLanguage,
             onTap: () => LanguagePickerSheet.show(
               context,
@@ -37,16 +37,15 @@ class LanguageSelector extends StatelessWidget {
           ),
         ),
 
-        // Dilleri takas eden gradyan buton (dönüş + pop animasyonlu)
+        // Dilleri takas eden buton (dönüş + pop animasyonlu)
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 6),
           child: _AnimatedSwapButton(onPressed: provider.swapLanguages),
         ),
 
-        // Hedef dil pili
+        // Hedef dil çipi
         Expanded(
-          child: _LanguagePill(
-            label: 'Hedef',
+          child: _LanguageChip(
             language: provider.targetLanguage,
             onTap: () => LanguagePickerSheet.show(
               context,
@@ -61,70 +60,68 @@ class LanguageSelector extends StatelessWidget {
   }
 }
 
-/// Tek bir dil pili: üstte küçük etiket ("Kaynak"/"Hedef"), altında
-/// bayrak + dil adı. Dil değişince içerik fade+kayma ile geçiş yapar.
-class _LanguagePill extends StatelessWidget {
-  final String label;
+/// Tek bir dil çipi: büyük dil adı (Türkçe), altında dilin kendi
+/// dilindeki adı + bayrak. Dil değişince içerik fade+kayma ile geçer.
+class _LanguageChip extends StatelessWidget {
   final AppLanguage language;
   final VoidCallback onTap;
 
-  const _LanguagePill({
-    required this.label,
-    required this.language,
-    required this.onTap,
-  });
+  const _LanguageChip({required this.language, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return TapScale(
       onTap: onTap,
-      child: FrostedCard(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        borderRadius: 20,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: kSlateChip,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
           children: [
-            Text(
-              label.toUpperCase(),
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.primary,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.2,
-              ),
-            ),
-            const SizedBox(height: 4),
-
-            // Seçili dil — değişince yumuşak geçiş.
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 250),
-              transitionBuilder: (child, animation) => FadeTransition(
-                opacity: animation,
-                child: SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(0.10, 0),
-                    end: Offset.zero,
-                  ).animate(animation),
-                  child: child,
+            Expanded(
+              // Seçili dil — değişince yumuşak geçiş.
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0.10, 0),
+                      end: Offset.zero,
+                    ).animate(animation),
+                    child: child,
+                  ),
                 ),
-              ),
-              child: Row(
-                key: ValueKey(language.mlkitLanguage),
-                children: [
-                  Text(language.flag, style: const TextStyle(fontSize: 20)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
+                child: Column(
+                  key: ValueKey(language.mlkitLanguage),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
                       language.displayName,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 2),
+                    Text(
+                      '${language.nativeName} ${language.flag}',
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
+            const Icon(Icons.expand_more, color: Colors.white70, size: 20),
           ],
         ),
       ),
@@ -132,8 +129,8 @@ class _LanguagePill extends StatelessWidget {
   }
 }
 
-/// Dilleri takas eden gradyan dairesel buton. Basıldığında 180° döner
-/// ve kısa bir büyüyüp-küçülme ("pop") efekti yapar.
+/// Dilleri takas eden buton. Basıldığında 180° döner ve kısa bir
+/// büyüyüp-küçülme ("pop") efekti yapar.
 class _AnimatedSwapButton extends StatefulWidget {
   final VoidCallback onPressed;
 
@@ -158,12 +155,12 @@ class _AnimatedSwapButtonState extends State<_AnimatedSwapButton>
     );
     _scale = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween(begin: 1.0, end: 1.18)
+        tween: Tween(begin: 1.0, end: 1.25)
             .chain(CurveTween(curve: Curves.easeOut)),
         weight: 50,
       ),
       TweenSequenceItem(
-        tween: Tween(begin: 1.18, end: 1.0)
+        tween: Tween(begin: 1.25, end: 1.0)
             .chain(CurveTween(curve: Curves.easeIn)),
         weight: 50,
       ),
@@ -188,28 +185,21 @@ class _AnimatedSwapButtonState extends State<_AnimatedSwapButton>
     return Tooltip(
       message: 'Dilleri değiştir',
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: _handleTap,
-        child: AnimatedRotation(
-          turns: _turns,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOutBack,
-          child: ScaleTransition(
-            scale: _scale,
-            child: Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: kAccentGradient,
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF6366F1).withValues(alpha: 0.5),
-                    blurRadius: 18,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: AnimatedRotation(
+            turns: _turns,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutBack,
+            child: ScaleTransition(
+              scale: _scale,
+              child: const Icon(
+                Icons.swap_horiz,
+                color: Colors.white,
+                size: 26,
               ),
-              child: const Icon(Icons.swap_horiz, color: Colors.white),
             ),
           ),
         ),

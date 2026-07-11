@@ -2,14 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/translation_provider.dart';
-import 'frosted_card.dart';
+import '../theme/app_colors.dart';
 
-/// ORTA KISIM: Kullanıcının çevrilecek metni yazdığı buzlu cam kart.
+/// ORTA KISIM: Kullanıcının çevrilecek metni yazdığı BEMBEYAZ kart.
 ///
-/// Odaklanınca kartın kenarlığı yumuşakça vurgu rengine döner.
-/// Sağ altta temizleme (✕) butonu, sol altta soluk karakter sayısı vardır.
-///
-/// [StatefulWidget] olmasının sebebi: odak durumunu izleyen [FocusNode].
+/// Koyu lacivert zemin üzerinde en çok dikkat çeken yüzeydir (tasarım
+/// dilinin ana ögesi). Odaklanınca kenarlığı turuncuya döner; sağ altta
+/// temizleme (✕) butonu, sol altta soluk karakter sayısı vardır.
 class SourceTextField extends StatefulWidget {
   const SourceTextField({super.key});
 
@@ -36,18 +35,26 @@ class _SourceTextFieldState extends State<SourceTextField> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<TranslationProvider>();
-    final colorScheme = Theme.of(context).colorScheme;
     final focused = _focusNode.hasFocus;
 
-    return FrostedCard(
-      padding: EdgeInsets.zero,
-      borderRadius: 24,
-      elevated: true,
-      // Odaklanınca kenarlık vurgu rengine döner (FrostedCard içindeki
-      // AnimatedContainer sayesinde geçiş otomatik yumuşaktır).
-      borderColor:
-          focused ? colorScheme.primary.withValues(alpha: 0.65) : null,
-      borderWidth: focused ? 1.6 : 1,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+      decoration: BoxDecoration(
+        color: kCardWhite,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: focused ? kAccentOrange : Colors.transparent,
+          width: 1.6,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
       child: Stack(
         children: [
           // Geniş, çok satırlı, çerçevesiz metin girişi
@@ -57,15 +64,18 @@ class _SourceTextFieldState extends State<SourceTextField> {
             maxLines: 6,
             minLines: 6,
             textInputAction: TextInputAction.newline,
-            style: const TextStyle(fontSize: 18),
-            decoration: InputDecoration(
+            cursorColor: kAccentOrange,
+            style: const TextStyle(
+              fontSize: 18,
+              color: kInkDark,
+              height: 1.4,
+            ),
+            decoration: const InputDecoration(
               hintText: 'Çevrilecek metni buraya yazın...',
-              hintStyle: TextStyle(
-                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.55),
-              ),
+              hintStyle: TextStyle(color: kInkMuted),
               border: InputBorder.none,
               // Alt butonlar metnin üzerine binmesin diye alt boşluk.
-              contentPadding: const EdgeInsets.fromLTRB(16, 16, 16, 48),
+              contentPadding: EdgeInsets.fromLTRB(16, 16, 16, 48),
             ),
           ),
 
@@ -82,11 +92,7 @@ class _SourceTextFieldState extends State<SourceTextField> {
                   duration: const Duration(milliseconds: 200),
                   child: Text(
                     '$length karakter',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: colorScheme.onSurfaceVariant
-                          .withValues(alpha: 0.5),
-                    ),
+                    style: const TextStyle(fontSize: 12, color: kInkMuted),
                   ),
                 );
               },
@@ -113,6 +119,7 @@ class _SourceTextFieldState extends State<SourceTextField> {
                       : IconButton(
                           key: const ValueKey('clear'),
                           tooltip: 'Metni temizle',
+                          color: kInkMuted,
                           icon: const Icon(Icons.close),
                           onPressed: provider.clearText,
                         ),

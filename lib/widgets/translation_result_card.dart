@@ -3,123 +3,182 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Clipboard için
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
+import '../models/favorite_translation.dart';
+import '../providers/favorites_provider.dart';
 import '../providers/translation_provider.dart';
-import 'frosted_card.dart';
+import '../theme/app_colors.dart';
 
-/// ALT KISIM: Çeviri sonucunun gösterildiği buzlu cam kart.
+/// ALT KISIM: Çeviri sonucunun gösterildiği açık lavanta kart.
 ///
-/// Başlıkta gradyan renkli hedef dil adı; çeviri sürerken kartın üstünde
-/// ince bir gradyan ilerleme şeridi belirir. Sonuç her güncellendiğinde
-/// yumuşak fade ile geçer; kart yüksekliği sıçramadan uyarlanır.
+/// Üstte hedef dil etiketi (çeviri sürerken ince turuncu ilerleme
+/// şeridi), ortada sonuç metni, altta aksiyon satırı:
+/// [★ Favori] [⧉ Kopyala] [↗ Paylaş].
 class TranslationResultCard extends StatelessWidget {
   const TranslationResultCard({super.key});
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<TranslationProvider>();
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final result = provider.translatedText;
 
-    return FrostedCard(
-      padding: EdgeInsets.zero,
-      borderRadius: 24,
-      elevated: true,
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: kCardLavender,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Çeviri sürerken üst kenarda beliren ince gradyan şerit.
-          AnimatedOpacity(
-            opacity: provider.isTranslating ? 1 : 0,
-            duration: const Duration(milliseconds: 250),
-            child: Container(
-              height: 3,
-              decoration: const BoxDecoration(gradient: kAccentGradient),
+          // Çeviri sürerken üst kenarda beliren ince turuncu şerit.
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+            child: AnimatedOpacity(
+              opacity: provider.isTranslating ? 1 : 0,
+              duration: const Duration(milliseconds: 250),
+              child: Container(height: 3, color: kAccentOrange),
             ),
           ),
 
-          ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 150),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 8, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Başlık satırı: gradyan hedef dil adı + kopyala butonu
-                  Row(
-                    children: [
-                      Text(provider.targetLanguage.flag,
-                          style: const TextStyle(fontSize: 16)),
-                      const SizedBox(width: 6),
-                      // Dil adına gradyan renk uygular.
-                      ShaderMask(
-                        shaderCallback: (bounds) =>
-                            kAccentGradient.createShader(bounds),
-                        child: Text(
-                          provider.targetLanguage.displayName,
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            color: Colors.white, // ShaderMask için taban.
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.4,
-                          ),
-                        ),
-                      ),
-                      const Spacer(),
-
-                      // "Metni Kopyala" butonu — sadece sonuç varken aktif.
-                      _CopyButton(text: result),
-                    ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Hedef dil etiketi
+                Text(
+                  '${provider.targetLanguage.flag} '
+                  '${provider.targetLanguage.displayName}',
+                  style: const TextStyle(
+                    color: kInkMuted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.6,
                   ),
-                  const SizedBox(height: 4),
+                ),
+                const SizedBox(height: 6),
 
-                  // Çeviri sonucu (veya zarif boş durum) — her değişimde
-                  // yumuşak fade, kart yüksekliği sıçramadan uyarlanır.
-                  AnimatedSize(
-                    duration: const Duration(milliseconds: 200),
-                    alignment: Alignment.topLeft,
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 250),
-                      child: result.isEmpty
-                          ? Padding(
-                              key: const ValueKey('empty'),
-                              padding: const EdgeInsets.only(top: 12),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.translate,
+                // Çeviri sonucu (veya zarif boş durum) — her değişimde
+                // yumuşak fade, kart yüksekliği sıçramadan uyarlanır.
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 200),
+                  alignment: Alignment.topLeft,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 250),
+                    child: result.isEmpty
+                        ? Padding(
+                            key: const ValueKey('empty'),
+                            padding: const EdgeInsets.symmetric(vertical: 18),
+                            child: Row(
+                              children: [
+                                Icon(Icons.translate,
                                     size: 18,
-                                    color: colorScheme.onSurfaceVariant
-                                        .withValues(alpha: 0.4),
+                                    color:
+                                        kInkMuted.withValues(alpha: 0.6)),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Çeviri burada görünecek...',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color:
+                                        kInkMuted.withValues(alpha: 0.8),
                                   ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Çeviri burada görünecek...',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      color: colorScheme.onSurfaceVariant
-                                          .withValues(alpha: 0.5),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : Text(
+                                ),
+                              ],
+                            ),
+                          )
+                        : Padding(
+                            key: ValueKey(result),
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Text(
                               result,
-                              key: ValueKey(result),
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 19,
                                 height: 1.45,
-                                color: colorScheme.onSurface,
+                                color: kInkDark,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                    ),
+                          ),
                   ),
-                ],
-              ),
+                ),
+
+                // Aksiyon satırı: favori + kopyala + paylaş
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    _FavoriteButton(result: result),
+                    _CopyButton(text: result),
+                    _ShareButton(text: result),
+                  ],
+                ),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Favori (yıldız) butonu: mevcut çeviri favorilerdeyse dolu turuncu
+/// yıldız gösterir; dokununca ekler/çıkarır (kalıcı olarak saklanır).
+class _FavoriteButton extends StatelessWidget {
+  final String result;
+
+  const _FavoriteButton({required this.result});
+
+  @override
+  Widget build(BuildContext context) {
+    final translation = context.watch<TranslationProvider>();
+    final favorites = context.watch<FavoritesProvider>();
+
+    final sourceText = translation.textController.text.trim();
+    final canFavorite = result.isNotEmpty && sourceText.isNotEmpty;
+
+    final fav = FavoriteTranslation(
+      sourceCode: translation.sourceLanguage.bcpCode,
+      targetCode: translation.targetLanguage.bcpCode,
+      sourceText: sourceText,
+      translatedText: result,
+      createdAt: DateTime.now(),
+    );
+    final isSaved = canFavorite && favorites.contains(fav);
+
+    return IconButton(
+      tooltip: isSaved ? 'Favorilerden çıkar' : 'Favorilere ekle',
+      onPressed: canFavorite
+          ? () {
+              favorites.toggle(fav);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(isSaved
+                      ? 'Favorilerden çıkarıldı'
+                      : 'Favorilere eklendi ⭐'),
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            }
+          : null,
+      icon: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 200),
+        transitionBuilder: (child, animation) =>
+            ScaleTransition(scale: animation, child: child),
+        child: Icon(
+          isSaved ? Icons.star : Icons.star_border,
+          key: ValueKey(isSaved),
+          color: isSaved ? kAccentOrange : kInkMuted,
+        ),
       ),
     );
   }
@@ -169,6 +228,7 @@ class _CopyButtonState extends State<_CopyButton> {
   Widget build(BuildContext context) {
     return IconButton(
       tooltip: 'Metni kopyala',
+      color: kInkMuted,
       icon: AnimatedSwitcher(
         duration: const Duration(milliseconds: 200),
         transitionBuilder: (child, animation) => RotationTransition(
@@ -180,6 +240,37 @@ class _CopyButtonState extends State<_CopyButton> {
             : const Icon(Icons.copy, key: ValueKey('copy')),
       ),
       onPressed: widget.text.isEmpty ? null : () => _copyToClipboard(context),
+    );
+  }
+}
+
+/// Paylaşma butonu: çeviri sonucunu sistemin paylaşım menüsüyle
+/// diğer uygulamalara gönderir.
+class _ShareButton extends StatelessWidget {
+  final String text;
+
+  const _ShareButton({required this.text});
+
+  Future<void> _share(BuildContext context) async {
+    // iPad'de paylaşım penceresinin nereden açılacağı zorunludur;
+    // butonun ekran konumunu veriyoruz.
+    final box = context.findRenderObject() as RenderBox?;
+    await SharePlus.instance.share(
+      ShareParams(
+        text: text,
+        sharePositionOrigin:
+            box != null ? box.localToGlobal(Offset.zero) & box.size : null,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: 'Paylaş',
+      color: kInkMuted,
+      icon: const Icon(Icons.ios_share),
+      onPressed: text.isEmpty ? null : () => _share(context),
     );
   }
 }
