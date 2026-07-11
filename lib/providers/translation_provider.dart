@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:google_mlkit_translation/google_mlkit_translation.dart';
 
 import '../models/language.dart';
@@ -233,17 +234,29 @@ class TranslationProvider extends ChangeNotifier {
   // ---------------------------------------------------------------------------
 
   /// Tüm desteklenen dillerin model durumlarını cihazdan sorgular.
+  ///
+  /// Her dilin kontrolü kendi try/catch'i içinde yapılır: bir dilde hata
+  /// oluşsa bile (örn. cihazda Google Play Hizmetleri ile ilgili bir sorun)
+  /// döngü durmaz ve o dil sonsuza dek [ModelStatus.checking]'te kilitli
+  /// kalmaz — güvenli varsayım olarak "indirilmedi" kabul edilir, böylece
+  /// kullanıcı en azından "İndir" butonunu görüp tekrar deneyebilir.
   Future<void> refreshAllModelStatuses() async {
     for (final lang in supportedLanguages) {
       // Zaten indirilmekte olan bir modelin durumunu ezme.
       if (_modelStatuses[lang.mlkitLanguage] == ModelStatus.downloading) {
         continue;
       }
-      final downloaded = await _service.isModelDownloaded(lang.mlkitLanguage);
-      _modelStatuses[lang.mlkitLanguage] =
-          downloaded ? ModelStatus.downloaded : ModelStatus.notDownloaded;
+      try {
+        final downloaded =
+            await _service.isModelDownloaded(lang.mlkitLanguage);
+        _modelStatuses[lang.mlkitLanguage] =
+            downloaded ? ModelStatus.downloaded : ModelStatus.notDownloaded;
+      } catch (e) {
+        _modelStatuses[lang.mlkitLanguage] = ModelStatus.notDownloaded;
+      }
+      // Her dil sonuçlandıkça hemen bildir; tümünün bitmesini beklemez.
+      notifyListeners();
     }
-    notifyListeners();
   }
 
   /// Verilen dilin modelini indirir ve durumu günceller.
@@ -257,13 +270,17 @@ class TranslationProvider extends ChangeNotifier {
       _modelStatuses[language.mlkitLanguage] =
           success ? ModelStatus.downloaded : ModelStatus.notDownloaded;
       if (!success) {
-        _errorMessage =
-            '${language.displayName} modeli indirilemedi. İnternet bağlantınızı kontrol edin.';
+        _errorMessage = '${language.displayName} modeli indirilemedi. '
+            'Wi-Fi/mobil veri bağlantınızı kontrol edip tekrar deneyin.';
       }
     } catch (e) {
+      // Gerçek hata sebebini kullanıcıya yansıt (jenerik mesaj yerine) —
+      // böylece asıl sorunun ağ mı, Google Play Hizmetleri mi, yoksa
+      // depolama mı olduğu teşhis edilebilir.
       _modelStatuses[language.mlkitLanguage] = ModelStatus.notDownloaded;
-      _errorMessage =
-          '${language.displayName} modeli indirilemedi. İnternet bağlantınızı kontrol edin.';
+      _errorMessage = '${language.displayName} modeli indirilemedi: '
+          '${_describeError(e)}. Wi-Fi/mobil veri bağlantınızı ve Google '
+          'Play Hizmetleri\'nin güncel olduğunu kontrol edip tekrar deneyin.';
     }
     notifyListeners();
 
@@ -280,6 +297,16 @@ class TranslationProvider extends ChangeNotifier {
       _errorMessage = '${language.displayName} modeli silinemedi: $e';
     }
     notifyListeners();
+  }
+
+  /// Bir hatayı kullanıcıya gösterilecek kısa, okunabilir bir metne çevirir.
+  /// [PlatformException] ise (ML Kit'in native tarafından gelen hatalar
+  /// hep bu tiptedir) asıl mesajını/kodunu kullanır; değilse `toString()`.
+  String _describeError(Object error) {
+    if (error is PlatformException) {
+      return error.message ?? error.code;
+    }
+    return error.toString();
   }
 
   /// Seçili dil çiftinde eksik olan TÜM modelleri indirir ("İndir" butonu).
