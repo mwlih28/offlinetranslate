@@ -158,24 +158,21 @@ Kullanıcı yazdı → TranslationProvider (500ms debounce)
 | Release APK'da model inmiyor | `AndroidManifest.xml`'de `INTERNET` izninin olduğunu kontrol edin (4. adım) |
 | Çeviri butonu/sonucu gelmiyor | Her İKİ dilin paketinin de indirildiğinden emin olun (sağ üst ikon → Dil Paketleri) |
 | Yerelde iOS pod hatası | Swift Package Manager kullanıldığından `pod install` gerekmez; sorun sürerse CocoaPods'a geçin (5. adımdaki not) |
-| Bazı Xiaomi/HyperOS (ve benzeri özelleştirilmiş ROM'lu) cihazlarda dil paketi hiç inmiyor | Aşağıdaki "Bilinen Sınırlama" bölümüne bakın |
+| Android 14+ cihazlarda dil paketi hiç inmiyor (NullPointerException) | Aşağıdaki "Bilinen Sorun" bölümüne bakın — bu muhtemelen çoğu güncel cihazı etkileyen bir üst kaynak (Google) hatası |
 
-### ⚠️ Bilinen Sınırlama: Bazı Xiaomi/HyperOS Cihazlarında Model İndirme Başarısız Olabilir
+### ⚠️ Bilinen Sorun: Android 14+ Cihazlarda Model İndirme Başarısız Olabiliyor (muhtemelen yaygın, cihaza özgü DEĞİL)
 
-Google ML Kit'in çeviri modeli indirme mekanizması, **Google Play Hizmetleri**'nin dinamik modül indirme altyapısını kullanır — bu, uygulamamızın değil, Google'ın kendi SDK'sının bir gereksinimidir. Bazı Xiaomi tabletlerinde/telefonlarında (örn. **Xiaomi Pad 7 Pro**, HyperOS) — Play Hizmetleri kurulu, güncel ve sertifikalı olsa bile ("Play Protect: Cihaz sertifikalı") — model indirme şu hatayla başarısız olabiliyor:
+Google ML Kit'in çeviri modeli indirme mekanizması, **Google Play Hizmetleri**'nin dinamik modül indirme altyapısını kullanır. Test edilen **iki farklı, birbiriyle alakasız cihazda** (farklı marka, farklı ağ, farklı Google hesabı — bir Xiaomi tablet ve bir Samsung Galaxy S23, **ikisi de Android 14+**) model indirme aynı hatayla başarısız oldu:
 
 ```
 java.lang.NullPointerException: Attempt to invoke virtual method
 'java.lang.Class java.lang.Object.getClass()' on a null object reference
 ```
 
-Bu hata, Play Hizmetleri'nin obfuske edilmiş (zza/zzb) reflection tabanlı iç mekanizmasına özgü klasik bir hata deseni olup **uygulama kodundan kaynaklanmaz** — denenip elenen ihtimaller:
-- ❌ Paket sürümü sorunu değil (0.14.0 → 0.13.1 düşürüldü, `MissingPluginException` farklı bir hataydı ve bu düşürmeyle zaten çözüldü)
-- ❌ ProGuard/minifikasyon sorunu değil (release derlemesinde kapalı)
-- ❌ Google Play Hizmetleri eksikliği değil (cihazda mevcut, güncel, sertifikalı, aktif ağ trafiği var)
-- ❌ Önbellek/veri temizleme, yeniden başlatma ile düzelmiyor
-- ❌ Sorun tek bir dile özgü değil (Türkçe, İngilizce, Fransızca'da aynı hata)
+**Kök neden analizi:**
+- ❌ Bizim paket sürümümüzden kaynaklanmıyor: `google_mlkit_translation`'ın hem 0.13.1 hem 0.14.0 sürümü, ikisi de AYNI native Google kütüphanesini (`com.google.mlkit:translate:17.0.3`) kullanıyor — bu native kütüphane **Ağustos 2024'ten beri güncellenmemiş** (Maven'daki son sürüm hâlâ 17.0.3).
+- ✅ ML Kit'in resmi GitHub deposunda ([issue #744](https://github.com/googlesamples/mlkit/issues/744)) tam olarak bu senaryoyla örtüşen, **çözülmemiş** bir Android 14 hatası var: Android 14, dinamik broadcast receiver kaydında `RECEIVER_EXPORTED`/`RECEIVER_NOT_EXPORTED` bayrağını zorunlu kılıyor; ML Kit'in eski model indirme kodu bunu karşılamıyor ve indirme zincirinde hataya yol açıyor.
+- ❌ Google'ın 2026 itibarıyla sunduğu daha yeni on-device AI/çeviri API'leri (Gemini Nano/AICore tabanlı "ML Kit GenAI") bu sorunu çözmüyor — çünkü (a) bunlarda ayrı bir çeviri API'si yok, (b) sadece amiral gemisi cihazlarda (Pixel 9/10, Galaxy S25/S26, OnePlus 13/15) destekleniyor, test cihazlarımız dahil çoğu cihazda kullanılamıyor.
+- ❌ ProGuard/minifikasyon, Play Hizmetleri eksikliği, önbellek/veri temizleme, cihaz markası, ağ/hesap — hepsi tek tek denendi ve ekarte edildi.
 
-**Kalıcı çözüm** (ML Kit'i tamamen Play Hizmetleri'nden bağımsız bir motorla değiştirmek) değerlendirildi ve şimdilik ertelendi: açık kaynak alternatiflerin (Opus-MT, T5, madlad400) tümü Google'ın ~30 MB'lık modellerine kıyasla **dil/yön başına 300 MB–900 MB+** boyutunda, Flutter'a hazır bir entegrasyonları yok (ONNX Runtime/TFLite'ı native köprüyle bağlamak + SentencePiece tokenizer entegrasyonu gerekiyor) ve bu, haftalar sürebilecek, sonucu garanti olmayan bir yeniden yazım anlamına geliyor. Meta'nın NLLB modeli ise CC-BY-NC lisanslı olduğundan (ticari/genel kullanım kısıtlı) zaten eleniyor.
-
-**Sonuç:** Uygulama, Play Hizmetleri düzgün çalışan cihazların büyük çoğunluğunda (Samsung, Google Pixel, standart Android vb.) sorunsuz çalışır. Belirli özelleştirilmiş ROM'larda (bazı Xiaomi/HyperOS cihazları gibi) model indirme başarısız olabilir — bu, bilinen ve şimdilik kabul edilen bir sınırlamadır.
+**Sonuç:** Bu, uygulamamızın kodundan değil, Google'ın görünüşe göre bakımı ihmal edilmiş native ML Kit Translate kütüphanesinden kaynaklanan, **Android 14+ çalıştıran geniş bir cihaz kesimini etkileyebilecek** bir üst kaynak hatası. Kalıcı çözüm (modeli tamamen Play Hizmetleri'nden bağımsız, uygulama içine gömülü bir motorla değiştirmek) mühendislik maliyeti (dil/yön başına 300 MB–900 MB+ indirme, haftalarca sürebilecek entegrasyon: ONNX Runtime/TFLite + SentencePiece tokenizer, uygun lisanslı bir model seçimi) nedeniyle şimdilik değerlendirme aşamasında.
