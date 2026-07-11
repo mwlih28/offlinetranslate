@@ -1,0 +1,45 @@
+name: Android APK Derle
+
+# Bu iş akışı, PC'ye ihtiyaç duymadan Android APK üretmenizi sağlar.
+# Tetiklendiğinde GitHub'ın kendi bulut sunucusunda derleme yapılır;
+# sonuç dosyasını "Actions" sekmesinden telefon/tarayıcı ile indirebilirsiniz.
+on:
+  push:
+    branches: [claude/flutter-offline-translator-5nm13x]
+  workflow_dispatch: # "Run workflow" butonuyla elle de tetiklenebilir.
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Depoyu indir
+        uses: actions/checkout@v4
+
+      - name: Java kurulumu
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Flutter SDK kurulumu
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+
+      - name: Bağımlılıkları indir
+        run: flutter pub get
+
+      - name: Statik analiz
+        run: flutter analyze
+
+      - name: Release APK derle
+        run: flutter build apk --release
+
+      # Derlenen APK, bu workflow çalıştırmasının sayfasında "Artifacts"
+      # bölümünde indirilebilir dosya olarak belirir (30 gün saklanır).
+      - name: APK'yı indirilebilir dosya olarak yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: offline-ceviri-android-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30

@@ -1,0 +1,35 @@
+name: iOS Derleme Kontrolü
+
+# Bu iş akışı, macOS gerektiren iOS derlemesini GitHub'ın bulut Mac
+# sunucusunda yapar (kendi bilgisayarınıza Xcode kurmanıza gerek kalmaz).
+#
+# ÖNEMLİ: Apple, imzasız (unsigned) bir uygulamanın gerçek bir iPhone'a
+# kurulmasına izin vermez. Bu workflow, kodun iOS için sorunsuz derlendiğini
+# doğrular (--no-codesign). Uygulamayı gerçek cihaza kurmak/TestFlight'a
+# yüklemek için Apple Developer hesabıyla imzalama gerekir — bunun için
+# codemagic.yaml dosyasındaki Codemagic akışını kullanın (bkz. README.md).
+on:
+  push:
+    branches: [claude/flutter-offline-translator-5nm13x]
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    steps:
+      - name: Depoyu indir
+        uses: actions/checkout@v4
+
+      - name: Flutter SDK kurulumu
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+
+      - name: Bağımlılıkları indir
+        run: flutter pub get
+
+      - name: Statik analiz
+        run: flutter analyze
+
+      - name: iOS derlemesini doğrula (imzasız)
+        run: flutter build ios --release --no-codesign

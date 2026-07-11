@@ -15,36 +15,58 @@ Google ML Kit **On-Device Translation** kullanarak **tamamen internetsiz (offlin
 
 ---
 
-## 1️⃣ Adım: Gereksinimler
+## 🖥️ Bilgisayarınız Yoksa: Bulutta Derleme (PC/Mac Gerekmez)
+
+Bu depo, `android/` ve `ios/` platform klasörleri **dahil olmak üzere** tamamen hazırdır. Bilgisayarınız olmasa bile, uygulamayı sadece telefon/tarayıcı üzerinden bulutta derleyip kurabilirsiniz:
+
+### 🤖 Android → GitHub Actions (ücretsiz, hesap gerekmez)
+
+Depoda `.github/workflows/build-android.yml` zaten tanımlı. Her push'ta veya elle tetiklendiğinde GitHub'ın bulut sunucusunda APK derlenir:
+
+1. GitHub'da bu depoya gidin → **Actions** sekmesi.
+2. "Android APK Derle" iş akışını görün; bitince açılan sayfanın en altındaki **Artifacts** bölümünden `offline-ceviri-android-apk` dosyasını indirin (zip içinde `.apk` var).
+3. Telefonunuzda "Bilinmeyen kaynaklardan yükleme"ye izin verip APK'yı açarak kurun.
+
+Bunun için **hiçbir hesap veya ödeme gerekmez** — sadece GitHub deposu yeterli.
+
+### 🍏 iOS → Codemagic (imzalı IPA + TestFlight, Mac gerekmez)
+
+Apple, imzasız bir uygulamanın gerçek iPhone'a kurulmasına **izin vermez** (bu CI sağlayıcısından bağımsız, Apple'ın kuralı). Bu nedenle iOS için bir **Apple Developer hesabı** (yıllık 99$) şarttır — ama sertifika/profil oluşturma dahil her adım tarayıcıdan yapılabilir, Mac'e ihtiyacınız yoktur:
+
+1. https://codemagic.io adresine GitHub hesabınızla giriş yapın, bu depoyu ekleyin. Codemagic, depodaki `codemagic.yaml` dosyasını otomatik algılar.
+2. **Apple Developer** hesabınızla App Store Connect üzerinden bir "API Key" oluşturun (Apple'ın kendi web sitesinden, telefon tarayıcısından bile yapılabilir).
+3. Codemagic panelinde **Teams → Integrations → Apple Developer Portal** kısmına bu API anahtarını `codemagic` adıyla ekleyin.
+4. **Teams → Code signing identities** kısmından Android için bir keystore oluşturun (tek tıkla).
+5. Codemagic'te "Start new build" ile `ios-workflow`'u çalıştırın — sertifika/profil otomatik oluşturulur, imzalı IPA üretilir ve **TestFlight'a otomatik yüklenir**. TestFlight uygulamasından telefonunuza kurarsınız.
+
+> 💡 Codemagic'in ücretsiz katmanı ayda 500 dakika bulut derleme süresi verir — küçük bir proje için fazlasıyla yeterli.
+
+---
+
+## 💻 Bilgisayarınız Varsa: Yerel Kurulum
+
+### 1️⃣ Gereksinimler
 
 | Araç | Sürüm |
 |---|---|
 | Flutter SDK | 3.27+ (Dart 3.6+) |
-| Android | minSdkVersion **21+** (Android 5.0) |
+| Android | minSdkVersion **21+** (Android 5.0) — proje varsayılanı **24** |
 | iOS | Deployment target **15.5+**, Xcode 15.3+ |
 
 Flutter kurulu değilse: https://docs.flutter.dev/get-started/install — kurulumdan sonra `flutter doctor` ile her şeyin yeşil olduğunu doğrulayın.
 
-## 2️⃣ Adım: Projeyi Oluşturma
+### 2️⃣ Projeyi Çalıştırma
 
-Bu depo `lib/` kaynak kodunu ve `pubspec.yaml` dosyasını içerir. Platform klasörlerini (`android/`, `ios/`) kendi makinenizde üretmeniz gerekir:
+`android/` ve `ios/` klasörleri **bu depoda zaten hazır** — ayrıca `flutter create` çalıştırmanıza gerek yoktur:
 
 ```bash
 git clone <bu-deponun-adresi>
 cd offlinetranslate
-
-# android/ ve ios/ klasörlerini mevcut projeye ekler:
-flutter create . --platforms=android,ios --org com.example
-
-# Paketleri indir:
 flutter pub get
+flutter run
 ```
 
-> `flutter create .` mevcut `lib/` ve `pubspec.yaml` dosyalarına DOKUNMAZ; sadece eksik platform dosyalarını üretir.
-
-## 3️⃣ Adım: pubspec.yaml (Paketler)
-
-Bu depodaki `pubspec.yaml` zaten hazırdır. Kullanılan güncel paketler:
+### 3️⃣ pubspec.yaml (Paketler)
 
 ```yaml
 dependencies:
@@ -60,65 +82,25 @@ dependencies:
   cupertino_icons: ^1.0.8
 ```
 
-## 4️⃣ Adım: Android Ayarları
+### 4️⃣ Android Ayarları (bu depoda uygulanmış durumda)
 
-### a) minSdkVersion kontrolü
-
-`android/app/build.gradle.kts` (veya eski projelerde `build.gradle`) içinde `minSdk` en az **21** olmalı. Güncel Flutter sürümlerinde varsayılan zaten 21+ olduğundan çoğu zaman değişiklik gerekmez:
-
-```kotlin
-android {
-    defaultConfig {
-        minSdk = 21   // ML Kit Translation için minimum
-    }
-}
-```
-
-### b) İnternet izni (sadece model indirme için)
-
-`android/app/src/main/AndroidManifest.xml` dosyasına, `<application>` etiketinin ÜSTÜNE ekleyin:
+- `android/app/build.gradle.kts` → `minSdk = flutter.minSdkVersion` (varsayılan **24**, ML Kit'in istediği 21'in üzerinde).
+- `android/app/src/main/AndroidManifest.xml` → `INTERNET` izni eklendi (**sadece dil paketi indirmek için**; çevirinin kendisi offline):
 
 ```xml
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-
-    <!-- SADECE dil paketlerinin ilk indirilmesi için gereklidir.
-         Çevirinin kendisi tamamen offline çalışır. -->
-    <uses-permission android:name="android.permission.INTERNET" />
-
-    <application ...>
+<uses-permission android:name="android.permission.INTERNET" />
 ```
 
-> 💡 Not: Debug modda Flutter bu izni otomatik ekler; ancak **release** APK/AAB için manifest'e elle eklenmesi şarttır.
+Dil modelleri APK'ya gömülmez; kullanıcı uygulama içinden indirir (~30 MB/dil), bu yüzden uygulama boyutu küçük kalır.
 
-### c) (İsteğe bağlı) Release boyut notu
+### 5️⃣ iOS Ayarları (bu depoda uygulanmış durumda)
 
-Dil modelleri APK'ya gömülmez; kullanıcı uygulama içinden indirir (~30 MB/dil). Bu yüzden uygulama boyutu küçük kalır.
+- `ios/Runner.xcodeproj/project.pbxproj` → `IPHONEOS_DEPLOYMENT_TARGET = 15.5` olarak ayarlandı (ML Kit gereksinimi).
+- Bu proje Flutter'ın güncel **Swift Package Manager** entegrasyonunu kullanır; ayrı bir `Podfile`/`pod install` adımı gerekmez. (Eğer bir eski Flutter/Xcode sürümüyle CocoaPods hatası alırsanız: `flutter config --enable-swift-package-manager=false` ile CocoaPods'a geri dönüp `cd ios && pod install --repo-update` çalıştırabilirsiniz.)
+- ML Kit yalnızca 64-bit mimarileri destekler (arm64 + x86_64) — gerçek cihaz ve Apple Silicon simülatörde sorunsuz çalışır.
+- Kamera/mikrofon kullanılmadığı için `Info.plist`'e özel bir izin eklemeye gerek yoktur.
 
-## 5️⃣ Adım: iOS Ayarları
-
-### a) Minimum iOS sürümü
-
-`ios/Podfile` dosyasının en üstündeki satırın yorumunu kaldırıp **15.5** yapın:
-
-```ruby
-platform :ios, '15.5'
-```
-
-Ayrıca Xcode'da `Runner > General > Minimum Deployments` değerini **15.5** yapın.
-
-### b) Pod kurulumu
-
-```bash
-cd ios
-pod install --repo-update
-cd ..
-```
-
-> 💡 ML Kit yalnızca 64-bit mimarileri destekler (arm64 + x86_64). Gerçek cihazlarda ve Apple Silicon Mac simülatörlerinde sorunsuz çalışır.
->
-> 💡 Kamera/mikrofon kullanılmadığı için `Info.plist`'e özel bir izin eklemeye **gerek yoktur**.
-
-## 6️⃣ Adım: Mimari
+## 6️⃣ Mimari
 
 **Durum yönetimi için `Provider` seçildi** (setState yerine). Sebep: Kullanıcı arayüzü ile çeviri iş mantığının tamamen ayrılması istendi; `setState` tüm mantığı widget'ın içine gömerken, Provider ile iş mantığı bağımsız ve test edilebilir sınıflarda yaşar.
 
@@ -160,32 +142,19 @@ Kullanıcı yazdı → TranslationProvider (500ms debounce)
 4. Her iki model de hazır olduğunda çeviri, `OnDeviceTranslator.translateText()` ile **tamamen cihaz üzerinde** yapılır. İnternet kapalıyken de çalışır.
 5. Kullanıcı, sağ üstteki ikon ile açılan yönetim ekranından istediği paketi silebilir (`deleteModel`).
 
-## 7️⃣ Adım: Çalıştırma ve Offline Testi
-
-```bash
-# Bağlı cihaz/emülatörde çalıştır:
-flutter run
-```
-
-**Offline çalıştığını doğrulamak için:**
+## 7️⃣ Offline Testi
 
 1. Uygulamayı internete bağlıyken açın.
 2. Kaynak ve hedef dili seçin (örn: İngilizce → Türkçe) ve banner'daki **İndir** butonuna basın.
 3. İndirme bittikten sonra cihazı **uçak moduna** alın.
 4. Metin yazın — çeviri internetsiz çalışmaya devam eder. ✈️✅
 
-**Release derlemesi:**
-
-```bash
-flutter build apk --release        # Android
-flutter build ios --release        # iOS (macOS + Xcode gerekir)
-```
-
 ## ❓ Sık Karşılaşılan Sorunlar
 
 | Sorun | Çözüm |
 |---|---|
-| Android'de `minSdkVersion` hatası | `android/app/build.gradle.kts` içinde `minSdk = 21` yapın |
-| iOS'ta pod hatası | `Podfile`'da `platform :ios, '15.5'` satırının aktif olduğundan emin olun, sonra `pod install --repo-update` |
-| Release APK'da model inmiyor | Manifest'e `INTERNET` izninin eklendiğini kontrol edin (4b adımı) |
+| GitHub Actions'da Android derlemesi kırmızı (❌) | Actions sekmesinden log'a bakın; genelde `flutter analyze` hatasıdır, PR/commit ile düzeltin |
+| Codemagic'te iOS imzalama hatası | Apple Developer hesabınızın aktif olduğundan ve API Key'in doğru "Integrations" adıyla (`codemagic`) eklendiğinden emin olun |
+| Release APK'da model inmiyor | `AndroidManifest.xml`'de `INTERNET` izninin olduğunu kontrol edin (4. adım) |
 | Çeviri butonu/sonucu gelmiyor | Her İKİ dilin paketinin de indirildiğinden emin olun (sağ üst ikon → Dil Paketleri) |
+| Yerelde iOS pod hatası | Swift Package Manager kullanıldığından `pod install` gerekmez; sorun sürerse CocoaPods'a geçin (5. adımdaki not) |

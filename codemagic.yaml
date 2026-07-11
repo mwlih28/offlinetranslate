@@ -1,0 +1,78 @@
+#
+# CODEMAGIC YAPILANDIRMASI — PC/Mac OLMADAN bulutta derleme + imzalama.
+#
+# Bu dosya, GitHub Actions'ın aksine hem Android'i hem de İMZALI iOS
+# uygulamasını (TestFlight'a otomatik yükleme dahil) üretir. Apple, gerçek
+# bir cihaza kurulum için imzalama şart koştuğundan, iOS tarafında bir
+# Apple Developer hesabı (yıllık 99$) gerekir — ama sertifika/profil
+# oluşturma dahil HER ŞEY Codemagic'in bulut arayüzünden, telefon veya
+# herhangi bir tarayıcıdan yapılabilir; Mac'e ihtiyaç YOKTUR.
+#
+# KURULUM ADIMLARI (README.md'de "PC'siz Kurulum" bölümünde detaylı anlatılıyor):
+#   1) https://codemagic.io adresine GitHub hesabınızla giriş yapın.
+#   2) Bu depoyu ("offlinetranslate") ekleyin — Codemagic bu dosyayı otomatik bulur.
+#   3) Android için: Codemagic > Teams > Code signing identities kısmından
+#      "Android keystore" oluşturun (tek tıkla, tarayıcıdan).
+#   4) iOS için: Apple Developer hesabınızla App Store Connect'te bir
+#      "API Key" oluşturup Codemagic > Teams > Integrations > Apple Developer
+#      Portal kısmına ekleyin. Codemagic sertifika ve provisioning profili
+#      SİZİN YERİNİZE otomatik oluşturur (Mac gerekmez).
+#   5) "Start new build" ile derlemeyi başlatın; APK/IPA dosyaları veya
+#      TestFlight bağlantısı e-postanıza gelir.
+
+workflows:
+  android-workflow:
+    name: Android APK (imzalı)
+    max_build_duration: 30
+    instance_type: linux_x2
+    environment:
+      flutter: stable
+      groups:
+        - android_signing # Codemagic UI'da bu isimle bir "keystore" grubu oluşturun.
+    scripts:
+      - name: Bağımlılıkları indir
+        script: flutter pub get
+      - name: Statik analiz
+        script: flutter analyze
+      - name: Release APK derle
+        script: |
+          flutter build apk --release
+    artifacts:
+      - build/app/outputs/flutter-apk/*.apk
+    publishing:
+      email:
+        recipients:
+          - $CM_USER_EMAIL # Codemagic panelinden kendi e-postanızı tanımlayın.
+
+  ios-workflow:
+    name: iOS IPA (imzalı, TestFlight'a otomatik yükleme)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      groups:
+        - app_store_credentials # Codemagic UI'da App Store Connect API key entegrasyonu.
+      vars:
+        BUNDLE_ID: "com.offlinetranslate.offlinetranslate"
+    integrations:
+      app_store_connect: codemagic # Codemagic > Integrations kısmında verdiğiniz isim.
+    scripts:
+      - name: Bağımlılıkları indir
+        script: flutter pub get
+      - name: Statik analiz
+        script: flutter analyze
+      - name: Kod imzalama ayarlarını otomatik getir
+        script: |
+          xcode-project use-profiles
+      - name: Release IPA derle
+        script: |
+          flutter build ipa --release \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
