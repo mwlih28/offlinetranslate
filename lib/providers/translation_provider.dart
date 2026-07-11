@@ -279,8 +279,7 @@ class TranslationProvider extends ChangeNotifier {
       // depolama mı olduğu teşhis edilebilir.
       _modelStatuses[language.mlkitLanguage] = ModelStatus.notDownloaded;
       _errorMessage = '${language.displayName} modeli indirilemedi: '
-          '${_describeError(e)}. Wi-Fi/mobil veri bağlantınızı ve Google '
-          'Play Hizmetleri\'nin güncel olduğunu kontrol edip tekrar deneyin.';
+          '${_describeError(e)}. ${_hintFor(e)}';
     }
     notifyListeners();
 
@@ -307,6 +306,31 @@ class TranslationProvider extends ChangeNotifier {
       return error.message ?? error.code;
     }
     return error.toString();
+  }
+
+  /// Hatanın metnine bakarak kullanıcıya somut bir sonraki adım önerir.
+  ///
+  /// "getClass() ... null object reference" deseni, ML Kit'in Google Play
+  /// Hizmetleri'nin obfuske edilmiş (zza/zzb) reflection tabanlı Task
+  /// tamamlama koduna özgü, klasik bir hata imzasıdır — cihazda Play
+  /// Hizmetleri eksik/güncel değil/oturum açılmamış olduğunda ortaya çıkar.
+  /// Bu bizim kodumuzda düzeltilecek bir şey değildir; kullanıcıyı doğru
+  /// yere (cihaz ayarları) yönlendirmek en faydalı olanıdır.
+  String _hintFor(Object error) {
+    final text = error.toString();
+    final looksLikePlayServicesIssue =
+        text.contains('getClass()') && text.contains('null object');
+
+    if (looksLikePlayServicesIssue) {
+      return 'Bu genellikle cihazınızdaki Google Play Hizmetleri\'nin '
+          'eksik veya güncel olmadığını gösterir. Play Store\'dan '
+          '"Google Play Hizmetleri" uygulamasını güncelleyin, Play '
+          'Store\'da bir hesapla oturum açtığınızdan emin olun ve tekrar '
+          'deneyin.';
+    }
+
+    return 'Wi-Fi/mobil veri bağlantınızı ve Google Play Hizmetleri\'nin '
+        'güncel olduğunu kontrol edip tekrar deneyin.';
   }
 
   /// Seçili dil çiftinde eksik olan TÜM modelleri indirir ("İndir" butonu).
