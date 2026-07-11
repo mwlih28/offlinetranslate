@@ -1,0 +1,32 @@
+name: offlinetranslate
+description: "Google ML Kit ile tamamen internetsiz (offline) çalışan çeviri uygulaması."
+publish_to: "none" # Bu proje pub.dev'e yayınlanmayacak.
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.6.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Google ML Kit On-Device Translation:
+  # Dil modellerini cihaza indirir ve çeviriyi tamamen cihaz üzerinde,
+  # internet bağlantısı OLMADAN yapar.
+  google_mlkit_translation: ^0.14.0
+
+  # State Management (Durum Yönetimi):
+  # UI (arayüz) ile iş mantığını (business logic) birbirinden ayırmak için.
+  provider: ^6.1.5
+
+  # iOS tarzı ikonlar (Flutter standart paketi).
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  # Material 3 tasarım standartlarını kullanır.
+  uses-material-design: true

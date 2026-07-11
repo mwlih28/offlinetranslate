@@ -1,0 +1,6 @@
+# Flutter'ın önerdiği lint (kod kalitesi) kuralları.
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    # İhtiyaca göre ek kurallar buraya eklenebilir.
