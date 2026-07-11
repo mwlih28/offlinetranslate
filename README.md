@@ -158,3 +158,24 @@ Kullanıcı yazdı → TranslationProvider (500ms debounce)
 | Release APK'da model inmiyor | `AndroidManifest.xml`'de `INTERNET` izninin olduğunu kontrol edin (4. adım) |
 | Çeviri butonu/sonucu gelmiyor | Her İKİ dilin paketinin de indirildiğinden emin olun (sağ üst ikon → Dil Paketleri) |
 | Yerelde iOS pod hatası | Swift Package Manager kullanıldığından `pod install` gerekmez; sorun sürerse CocoaPods'a geçin (5. adımdaki not) |
+| Bazı Xiaomi/HyperOS (ve benzeri özelleştirilmiş ROM'lu) cihazlarda dil paketi hiç inmiyor | Aşağıdaki "Bilinen Sınırlama" bölümüne bakın |
+
+### ⚠️ Bilinen Sınırlama: Bazı Xiaomi/HyperOS Cihazlarında Model İndirme Başarısız Olabilir
+
+Google ML Kit'in çeviri modeli indirme mekanizması, **Google Play Hizmetleri**'nin dinamik modül indirme altyapısını kullanır — bu, uygulamamızın değil, Google'ın kendi SDK'sının bir gereksinimidir. Bazı Xiaomi tabletlerinde/telefonlarında (örn. **Xiaomi Pad 7 Pro**, HyperOS) — Play Hizmetleri kurulu, güncel ve sertifikalı olsa bile ("Play Protect: Cihaz sertifikalı") — model indirme şu hatayla başarısız olabiliyor:
+
+```
+java.lang.NullPointerException: Attempt to invoke virtual method
+'java.lang.Class java.lang.Object.getClass()' on a null object reference
+```
+
+Bu hata, Play Hizmetleri'nin obfuske edilmiş (zza/zzb) reflection tabanlı iç mekanizmasına özgü klasik bir hata deseni olup **uygulama kodundan kaynaklanmaz** — denenip elenen ihtimaller:
+- ❌ Paket sürümü sorunu değil (0.14.0 → 0.13.1 düşürüldü, `MissingPluginException` farklı bir hataydı ve bu düşürmeyle zaten çözüldü)
+- ❌ ProGuard/minifikasyon sorunu değil (release derlemesinde kapalı)
+- ❌ Google Play Hizmetleri eksikliği değil (cihazda mevcut, güncel, sertifikalı, aktif ağ trafiği var)
+- ❌ Önbellek/veri temizleme, yeniden başlatma ile düzelmiyor
+- ❌ Sorun tek bir dile özgü değil (Türkçe, İngilizce, Fransızca'da aynı hata)
+
+**Kalıcı çözüm** (ML Kit'i tamamen Play Hizmetleri'nden bağımsız bir motorla değiştirmek) değerlendirildi ve şimdilik ertelendi: açık kaynak alternatiflerin (Opus-MT, T5, madlad400) tümü Google'ın ~30 MB'lık modellerine kıyasla **dil/yön başına 300 MB–900 MB+** boyutunda, Flutter'a hazır bir entegrasyonları yok (ONNX Runtime/TFLite'ı native köprüyle bağlamak + SentencePiece tokenizer entegrasyonu gerekiyor) ve bu, haftalar sürebilecek, sonucu garanti olmayan bir yeniden yazım anlamına geliyor. Meta'nın NLLB modeli ise CC-BY-NC lisanslı olduğundan (ticari/genel kullanım kısıtlı) zaten eleniyor.
+
+**Sonuç:** Uygulama, Play Hizmetleri düzgün çalışan cihazların büyük çoğunluğunda (Samsung, Google Pixel, standart Android vb.) sorunsuz çalışır. Belirli özelleştirilmiş ROM'larda (bazı Xiaomi/HyperOS cihazları gibi) model indirme başarısız olabilir — bu, bilinen ve şimdilik kabul edilen bir sınırlamadır.
