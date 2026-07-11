@@ -13,7 +13,14 @@ dependencies:
   # Google ML Kit On-Device Translation:
   # Dil modellerini cihaza indirir ve çeviriyi tamamen cihaz üzerinde,
   # internet bağlantısı OLMADAN yapar.
-  google_mlkit_translation: ^0.14.0
+  #
+  # NOT: 0.14.0'a YÜKSELTMEYİN — o sürüm Android tarafını Java'dan Kotlin'e
+  # tamamen yeniden yazdı (3 gün önce yayınlanmıştı) ve gerçek cihazlarda
+  # model indirme "MissingPluginException: nlp#manageLanguageModelModels"
+  # hatasıyla başarısız oluyor. 0.13.1 aynı native ML Kit SDK'sını
+  # (com.google.mlkit:translate:17.0.3) kanıtlanmış Java implementasyonuyla
+  # kullanıyor; Dart API'si birebir aynı.
+  google_mlkit_translation: ^0.13.1
 
   # State Management (Durum Yönetimi):
   # UI (arayüz) ile iş mantığını (business logic) birbirinden ayırmak için.
