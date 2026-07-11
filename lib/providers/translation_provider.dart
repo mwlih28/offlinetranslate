@@ -298,39 +298,40 @@ class TranslationProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Bir hatayı kullanıcıya gösterilecek kısa, okunabilir bir metne çevirir.
-  /// [PlatformException] ise (ML Kit'in native tarafından gelen hatalar
-  /// hep bu tiptedir) asıl mesajını/kodunu kullanır; değilse `toString()`.
+  /// Bir hatayı kullanıcıya gösterilecek okunabilir bir metne çevirir.
+  ///
+  /// [PlatformException] ise (ML Kit'in native tarafından gelen hatalar hep
+  /// bu tiptedir) mesajın yanına native `stacktrace`'in İLK BİRKAÇ SATIRINI
+  /// da ekler. Bu, hatanın gerçekte HANGİ native sınıf/metotta oluştuğunu
+  /// gösterir — sadece exception mesajına bakarak kök nedeni tahmin etmek
+  /// (ör. "Play Hizmetleri eksik" varsayımı) yanlış çıkabiliyor; asıl
+  /// stack trace kesin teşhis için gerekli.
   String _describeError(Object error) {
     if (error is PlatformException) {
-      return error.message ?? error.code;
+      final base = error.message ?? error.code;
+      final trace = error.stacktrace;
+      if (trace == null || trace.isEmpty) return base;
+
+      // İlk 6 satır genelde hatayı fırlatan native sınıf/metodu göstermeye
+      // yeter; tamamını göstermek banner'ı çok büyütür.
+      final firstLines = trace.split('\n').take(6).join('\n');
+      return '$base\n\n[Native stack trace]\n$firstLines';
     }
     return error.toString();
   }
 
   /// Hatanın metnine bakarak kullanıcıya somut bir sonraki adım önerir.
   ///
-  /// "getClass() ... null object reference" deseni, ML Kit'in Google Play
-  /// Hizmetleri'nin obfuske edilmiş (zza/zzb) reflection tabanlı Task
-  /// tamamlama koduna özgü, klasik bir hata imzasıdır — cihazda Play
-  /// Hizmetleri eksik/güncel değil/oturum açılmamış olduğunda ortaya çıkar.
-  /// Bu bizim kodumuzda düzeltilecek bir şey değildir; kullanıcıyı doğru
-  /// yere (cihaz ayarları) yönlendirmek en faydalı olanıdır.
+  /// NOT: "getClass() ... null object reference" deseninin cihazdaki Google
+  /// Play Hizmetleri'nin eksik/güncel olmamasından kaynaklandığı teorisi
+  /// denendi (Play Hizmetleri'ni güncelleme, önbellek/veri temizleme, temel
+  /// Play Hizmetleri kütüphanelerini zorla güncel sürüme çekme) ama hiçbiri
+  /// düzeltmedi — bu yüzden artık bu iddiayı kesin bir çözüm gibi
+  /// sunmuyoruz. Yukarıdaki native stack trace, asıl teşhis için gösterilir.
   String _hintFor(Object error) {
-    final text = error.toString();
-    final looksLikePlayServicesIssue =
-        text.contains('getClass()') && text.contains('null object');
-
-    if (looksLikePlayServicesIssue) {
-      return 'Bu genellikle cihazınızdaki Google Play Hizmetleri\'nin '
-          'eksik veya güncel olmadığını gösterir. Play Store\'dan '
-          '"Google Play Hizmetleri" uygulamasını güncelleyin, Play '
-          'Store\'da bir hesapla oturum açtığınızdan emin olun ve tekrar '
-          'deneyin.';
-    }
-
-    return 'Wi-Fi/mobil veri bağlantınızı ve Google Play Hizmetleri\'nin '
-        'güncel olduğunu kontrol edip tekrar deneyin.';
+    return 'Yukarıdaki native stack trace\'i (varsa) geliştiriciye iletin — '
+        'kesin teşhis için Wi-Fi/mobil veri bağlantınızı kontrol edip '
+        'tekrar deneyebilirsiniz.';
   }
 
   /// Seçili dil çiftinde eksik olan TÜM modelleri indirir ("İndir" butonu).
