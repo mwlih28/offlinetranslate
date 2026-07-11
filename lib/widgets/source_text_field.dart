@@ -26,10 +26,10 @@ class SourceTextField extends StatelessWidget {
           decoration: InputDecoration(
             hintText: 'Çevrilecek metni buraya yazın...',
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(20),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(20),
               borderSide: BorderSide(color: colorScheme.primary, width: 2),
             ),
             // Temizleme butonu metnin üzerine binmesin diye sağ-alt boşluk.
@@ -37,20 +37,29 @@ class SourceTextField extends StatelessWidget {
           ),
         ),
 
-        // Sağ alt köşedeki temizleme (✕) butonu — sadece metin varken görünür.
+        // Sağ alt köşedeki temizleme (✕) butonu — metin varken scale+fade
+        // ile belirir, boşalınca aynı şekilde kaybolur.
         Positioned(
           right: 8,
           bottom: 8,
           child: ListenableBuilder(
             listenable: provider.textController,
             builder: (context, _) {
-              if (provider.textController.text.isEmpty) {
-                return const SizedBox.shrink();
-              }
-              return IconButton(
-                tooltip: 'Metni temizle',
-                icon: const Icon(Icons.close),
-                onPressed: provider.clearText,
+              final isEmpty = provider.textController.text.isEmpty;
+              return AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                transitionBuilder: (child, animation) => ScaleTransition(
+                  scale: animation,
+                  child: FadeTransition(opacity: animation, child: child),
+                ),
+                child: isEmpty
+                    ? const SizedBox.shrink(key: ValueKey('no-clear'))
+                    : IconButton(
+                        key: const ValueKey('clear'),
+                        tooltip: 'Metni temizle',
+                        icon: const Icon(Icons.close),
+                        onPressed: provider.clearText,
+                      ),
               );
             },
           ),

@@ -22,6 +22,11 @@ dependencies:
   # iOS tarzı ikonlar (Flutter standart paketi).
   cupertino_icons: ^1.0.8
 
+  # Modern tipografi (Manrope fontu). Fontlar derleme sırasında pakete
+  # gömülür; main.dart'ta allowRuntimeFetching=false ile çalışma zamanında
+  # ASLA internet denenmeyeceği garanti edilir (offline uyumluluk).
+  google_fonts: ^6.2.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
