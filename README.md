@@ -158,21 +158,32 @@ Kullanıcı yazdı → TranslationProvider (500ms debounce)
 | Release APK'da model inmiyor | `AndroidManifest.xml`'de `INTERNET` izninin olduğunu kontrol edin (4. adım) |
 | Çeviri butonu/sonucu gelmiyor | Her İKİ dilin paketinin de indirildiğinden emin olun (sağ üst ikon → Dil Paketleri) |
 | Yerelde iOS pod hatası | Swift Package Manager kullanıldığından `pod install` gerekmez; sorun sürerse CocoaPods'a geçin (5. adımdaki not) |
-| Android 14+ cihazlarda dil paketi hiç inmiyor (NullPointerException) | Aşağıdaki "Bilinen Sorun" bölümüne bakın — bu muhtemelen çoğu güncel cihazı etkileyen bir üst kaynak (Google) hatası |
+| Release APK'da model indirirken `NullPointerException: getClass() on null object` | **ÇÖZÜLDÜ** — aşağıdaki bölüme bakın. R8/ProGuard minifikasyonu kapatıldı (`isMinifyEnabled = false`). |
 
-### ⚠️ Bilinen Sorun: Android 14+ Cihazlarda Model İndirme Başarısız Olabiliyor (muhtemelen yaygın, cihaza özgü DEĞİL)
+### ✅ Çözülmüş Sorun: R8 Minifikasyonu ML Kit'in Reflection Kodunu Bozuyordu
 
-Google ML Kit'in çeviri modeli indirme mekanizması, **Google Play Hizmetleri**'nin dinamik modül indirme altyapısını kullanır. Test edilen **iki farklı, birbiriyle alakasız cihazda** (farklı marka, farklı ağ, farklı Google hesabı — bir Xiaomi tablet ve bir Samsung Galaxy S23, **ikisi de Android 14+**) model indirme aynı hatayla başarısız oldu:
+Gerçek cihazlarda (Xiaomi tablet, Samsung Galaxy S23 — farklı marka/ağ/hesap) model indirme şu hatayla başarısız oluyordu:
 
 ```
 java.lang.NullPointerException: Attempt to invoke virtual method
 'java.lang.Class java.lang.Object.getClass()' on a null object reference
 ```
 
-**Kök neden analizi:**
-- ❌ Bizim paket sürümümüzden kaynaklanmıyor: `google_mlkit_translation`'ın hem 0.13.1 hem 0.14.0 sürümü, ikisi de AYNI native Google kütüphanesini (`com.google.mlkit:translate:17.0.3`) kullanıyor — bu native kütüphane **Ağustos 2024'ten beri güncellenmemiş** (Maven'daki son sürüm hâlâ 17.0.3).
-- ✅ ML Kit'in resmi GitHub deposunda ([issue #744](https://github.com/googlesamples/mlkit/issues/744)) tam olarak bu senaryoyla örtüşen, **çözülmemiş** bir Android 14 hatası var: Android 14, dinamik broadcast receiver kaydında `RECEIVER_EXPORTED`/`RECEIVER_NOT_EXPORTED` bayrağını zorunlu kılıyor; ML Kit'in eski model indirme kodu bunu karşılamıyor ve indirme zincirinde hataya yol açıyor.
-- ❌ Google'ın 2026 itibarıyla sunduğu daha yeni on-device AI/çeviri API'leri (Gemini Nano/AICore tabanlı "ML Kit GenAI") bu sorunu çözmüyor — çünkü (a) bunlarda ayrı bir çeviri API'si yok, (b) sadece amiral gemisi cihazlarda (Pixel 9/10, Galaxy S25/S26, OnePlus 13/15) destekleniyor, test cihazlarımız dahil çoğu cihazda kullanılamıyor.
-- ❌ ProGuard/minifikasyon, Play Hizmetleri eksikliği, önbellek/veri temizleme, cihaz markası, ağ/hesap — hepsi tek tek denendi ve ekarte edildi.
+**Kesin kök neden** (native stack trace'te doğrulandı — obfuske sınıf adları `a3.b.B`, `b1.a.p` ve `r8-map-id-...` etiketi görüldü): **Flutter'ın kendi Gradle eklentisi, `android/app/build.gradle.kts` içinde HİÇBİR YERDE görünmeden, release derlemeleri için R8 kod küçültme/gizlemeyi (minifikasyon) varsayılan olarak açıyor** (`FlutterPlugin.kt` içinde `releaseBuildType.isMinifyEnabled = true`). Projede ML Kit/Play Hizmetleri için özel bir ProGuard "keep" kuralı olmadığından, R8 bu kütüphanelerin reflection tabanlı iç sınıflarını yeniden adlandırıp koddaki dinamik sınıf/metot aramalarını kırıyordu.
 
-**Sonuç:** Bu, uygulamamızın kodundan değil, Google'ın görünüşe göre bakımı ihmal edilmiş native ML Kit Translate kütüphanesinden kaynaklanan, **Android 14+ çalıştıran geniş bir cihaz kesimini etkileyebilecek** bir üst kaynak hatası. Kalıcı çözüm (modeli tamamen Play Hizmetleri'nden bağımsız, uygulama içine gömülü bir motorla değiştirmek) mühendislik maliyeti (dil/yön başına 300 MB–900 MB+ indirme, haftalarca sürebilecek entegrasyon: ONNX Runtime/TFLite + SentencePiece tokenizer, uygun lisanslı bir model seçimi) nedeniyle şimdilik değerlendirme aşamasında.
+Denenip **elenen** yanlış teoriler (kayıt için):
+- ❌ Paket sürümü sorunu değildi (`google_mlkit_translation` 0.13.1 ↔ 0.14.0)
+- ❌ Google Play Hizmetleri'nin eksikliği/güncel olmaması değildi (cihazlarda mevcut, sertifikalı, güncel)
+- ❌ Android 14'ün broadcast receiver kuralı değildi
+- ❌ Play Hizmetleri'nin paylaşılan kütüphanelerini (`play-services-basement` vb.) zorla güncelleme işe yaramadı
+
+**Çözüm** (`android/app/build.gradle.kts`):
+```kotlin
+buildTypes {
+    release {
+        isMinifyEnabled = false
+    }
+}
+```
+
+Ayrıca teşhis sürecinde, plugin'in native hata raporlamasının stack trace hiç içermediği (sadece `e.toString()` gönderiyordu) fark edildi; bu yüzden `third_party/google_mlkit_commons/` altında **yamalı bir yerel kopya** tutuluyor (`dependency_overrides` ile bağlı) — hata raporlarında artık gerçek native stack trace görünüyor, bu ileride başka sorunların da hızlı teşhis edilmesini sağlar.
