@@ -32,14 +32,49 @@ jobs:
       - name: Statik analiz
         run: flutter analyze
 
-      - name: Release APK derle
+      # Play Store'a yüklenecek release imzalama anahtarı bu 4 secret'tan
+      # (repo Settings → Secrets and variables → Actions) kurulur. Secret'lar
+      # henüz eklenmediyse bu adım hiçbir şey yapmaz ve derleme, eskisi gibi
+      # debug anahtarıyla devam eder (Play Store'a yüklenemez ama CI/test
+      # amaçlı APK üretimini bozmaz).
+      - name: Release imzalama anahtarını hazırla (varsa)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+            {
+              echo "storePassword=$KEYSTORE_PASSWORD"
+              echo "keyPassword=$KEY_PASSWORD"
+              echo "keyAlias=$KEY_ALIAS"
+              echo "storeFile=upload-keystore.jks"
+            } > android/key.properties
+            echo "Release keystore bulundu — gerçek anahtarla imzalanacak."
+          else
+            echo "KEYSTORE_BASE64 secret'ı yok — debug anahtarıyla imzalanacak (Play Store'a yüklenemez)."
+          fi
+
+      - name: Release APK derle (sideload/test için)
         run: flutter build apk --release
 
-      # Derlenen APK, bu workflow çalıştırmasının sayfasında "Artifacts"
-      # bölümünde indirilebilir dosya olarak belirir (30 gün saklanır).
+      - name: Release App Bundle derle (Play Store için)
+        run: flutter build appbundle --release
+
+      # Derlenen dosyalar, bu workflow çalıştırmasının sayfasında
+      # "Artifacts" bölümünde indirilebilir olarak belirir (30 gün saklanır).
       - name: APK'yı indirilebilir dosya olarak yükle
         uses: actions/upload-artifact@v4
         with:
           name: offline-ceviri-android-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
+
+      - name: AAB'yi indirilebilir dosya olarak yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: offline-ceviri-android-aab
+          path: build/app/outputs/bundle/release/app-release.aab
           retention-days: 30

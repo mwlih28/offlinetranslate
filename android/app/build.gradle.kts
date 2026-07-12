@@ -1,7 +1,22 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// Play Store'a yüklenecek release imzalama anahtarı, `android/key.properties`
+// dosyasından okunur (git'e KOMİTLENMEZ — bkz. .gitignore). Bu dosya yoksa
+// (henüz gerçek bir keystore kurulmadıysa) release build eskisi gibi debug
+// anahtarıyla imzalanmaya devam eder, böylece CI/lokal derleme bozulmaz —
+// sadece Play Store'a yüklenemez.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val hasReleaseKeystore = keystorePropertiesFile.exists()
+val keystoreProperties = Properties()
+if (hasReleaseKeystore) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 android {
@@ -25,11 +40,26 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Gerçek bir release keystore kurulduysa onunla, kurulmadıysa
+            // (henüz Play Store'a yüklenmeyecekse) debug anahtarıyla imzala.
+            signingConfig = if (hasReleaseKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
 
             // KRİTİK: Flutter'ın kendi Gradle eklentisi (FlutterPlugin.kt),
             // release build type için isMinifyEnabled'ı VARSAYILAN OLARAK
