@@ -131,7 +131,17 @@ class _CameraBody extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         if (camera.isBusy)
-          const CircularProgressIndicator(color: kAccentOrange)
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(color: kAccentOrange),
+              const SizedBox(height: 10),
+              Text(
+                'Metin taranıyor ve çevriliyor...',
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.75)),
+              ),
+            ],
+          )
         else
           PrimaryButton(
             icon: Icons.refresh,
@@ -156,18 +166,73 @@ class _CameraBody extends StatelessWidget {
 /// genişlik/yükseklik oranı bilinsin ve ML Kit'in verdiği piksel
 /// koordinatları (kutular) bağımsız X/Y ölçek çarpanlarıyla doğrudan
 /// dönüştürülebilsin (letterbox ofseti hesaplamaya gerek kalmaz).
-class _OverlayedPhoto extends StatelessWidget {
+///
+/// Her kutu TAM OPAK bir zeminle çizilir (orijinal metnin "hayalet" gibi
+/// altından görünmesini önlemek için) ve yazı tipi boyutu, metnin kutuya
+/// tam oturması için [_fitFontSize] ile hesaplanır — sabit/varsayılan
+/// punto yerine her kutu için özel olarak büyütülüp küçültülür. Kutular,
+/// büyükten küçüğe sıralanıp çizilir ki küçük/iç içe kutular büyük
+/// kutuların ALTINDA kalmasın.
+class _OverlayedPhoto extends StatefulWidget {
   final CameraTranslateProvider camera;
 
   const _OverlayedPhoto({required this.camera});
 
   @override
+  State<_OverlayedPhoto> createState() => _OverlayedPhotoState();
+}
+
+class _OverlayedPhotoState extends State<_OverlayedPhoto>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _entranceController;
+
+  @override
+  void initState() {
+    super.initState();
+    _entranceController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    )..forward();
+  }
+
+  @override
+  void didUpdateWidget(covariant _OverlayedPhoto oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Yeni bir fotoğraf çekildiğinde giriş animasyonunu baştan oynat.
+    if (oldWidget.camera.imagePath != widget.camera.imagePath) {
+      _entranceController.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _entranceController.dispose();
+    super.dispose();
+  }
+
+  /// [index]. kutu için kademeli giriş animasyonu (fade + hafif büyüme).
+  Animation<double> _staggerFor(int index, int total) {
+    final start = (index / (total + 1)).clamp(0.0, 0.7);
+    return CurvedAnimation(
+      parent: _entranceController,
+      curve: Interval(start, (start + 0.4).clamp(0.0, 1.0),
+          curve: Curves.easeOutCubic),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final intrinsic = camera.imageIntrinsicSize;
-    final imagePath = camera.imagePath;
+    final intrinsic = widget.camera.imageIntrinsicSize;
+    final imagePath = widget.camera.imagePath;
     if (intrinsic == null || imagePath == null) {
       return const SizedBox.shrink();
     }
+
+    // Büyük kutular önce, küçük/iç içe kutular en son (Stack'te en üstte)
+    // çizilsin ki küçük bir kutu büyük bir kutunun altında kaybolmasın.
+    final sortedBlocks = [...widget.camera.blocks]..sort(
+        (a, b) => (b.box.width * b.box.height)
+            .compareTo(a.box.width * a.box.height));
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -185,38 +250,115 @@ class _OverlayedPhoto extends StatelessWidget {
               width: renderedWidth,
               height: renderedHeight,
             ),
-            for (final block in camera.blocks)
-              Positioned(
-                left: block.box.left * scaleX,
-                top: block.box.top * scaleY,
-                width: block.box.width * scaleX,
-                height: block.box.height * scaleY,
-                child: Container(
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 4, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: kNavy.withValues(alpha: 0.82),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      block.translated,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
+            for (var i = 0; i < sortedBlocks.length; i++)
+              _buildOverlayChip(
+                block: sortedBlocks[i],
+                scaleX: scaleX,
+                scaleY: scaleY,
+                animation: _staggerFor(i, sortedBlocks.length),
               ),
           ],
         );
       },
     );
   }
+
+  Widget _buildOverlayChip({
+    required OverlayBlock block,
+    required double scaleX,
+    required double scaleY,
+    required Animation<double> animation,
+  }) {
+    const padding = EdgeInsets.symmetric(horizontal: 6, vertical: 3);
+    final boxSize = Size(
+      block.box.width * scaleX,
+      block.box.height * scaleY,
+    );
+    final fontSize = _fitFontSize(
+      text: block.translated,
+      maxWidth: boxSize.width - padding.horizontal,
+      maxHeight: boxSize.height - padding.vertical,
+    );
+
+    return Positioned(
+      left: block.box.left * scaleX,
+      top: block.box.top * scaleY,
+      width: boxSize.width,
+      height: boxSize.height,
+      child: FadeTransition(
+        opacity: animation,
+        child: ScaleTransition(
+          scale: Tween(begin: 0.85, end: 1.0).animate(animation),
+          child: Container(
+            alignment: Alignment.center,
+            padding: padding,
+            decoration: BoxDecoration(
+              // Tam opak: altındaki orijinal metnin "hayalet" gibi
+              // görünmesini önler (önceki yarı-saydam sürüm bu yüzden
+              // kalabalık ve dağınık görünüyordu).
+              color: kNavy,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: kAccentOrange.withValues(alpha: 0.55),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.35),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Text(
+              block.translated,
+              textAlign: TextAlign.center,
+              maxLines: 6,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: fontSize,
+                height: 1.15,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Verilen [text]'in, [maxWidth]x[maxHeight] alanına (satır kaydırmalı
+/// olarak) sığacağı en büyük yazı tipi boyutunu bulur — böylece her kutu
+/// kendi boyutuna göre okunaklı bir puntoya sahip olur (sabit/varsayılan
+/// punto yerine, ki bu büyük kutularda komik derecede küçük, küçük
+/// kutularda ise taşan metne yol açıyordu).
+double _fitFontSize({
+  required String text,
+  required double maxWidth,
+  required double maxHeight,
+  double maxFontSize = 24,
+  double minFontSize = 9,
+}) {
+  if (maxWidth <= 0 || maxHeight <= 0) return minFontSize;
+
+  for (var fontSize = maxFontSize; fontSize > minFontSize; fontSize -= 1) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w700, height: 1.15),
+      ),
+      textAlign: TextAlign.center,
+      textDirection: TextDirection.ltr,
+      maxLines: 6,
+    )..layout(maxWidth: maxWidth);
+
+    if (!painter.didExceedMaxLines && painter.height <= maxHeight) {
+      return fontSize;
+    }
+  }
+  return minFontSize;
 }
 
 class _InfoCard extends StatelessWidget {
