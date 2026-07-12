@@ -45,6 +45,11 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^5.0.0
 
+  # Uygulama ikonunu (assets/icon/app_icon.png) Android + iOS için gereken
+  # tüm boyutlarda otomatik üretir. Sadece geliştirme aracı — çalışma
+  # zamanında uygulamaya dahil edilmez.
+  flutter_launcher_icons: ^0.14.4
+
 # Gerçek cihazlarda model indirirken çıkan NullPointerException'ın native
 # stack trace'ini görebilmek için google_mlkit_commons'ın yerel, yamalı
 # bir kopyasını kullanıyoruz (bkz. third_party/google_mlkit_commons).
@@ -59,3 +64,16 @@ dependency_overrides:
 flutter:
   # Material 3 tasarım standartlarını kullanır.
   uses-material-design: true
+  assets:
+    - assets/icon/app_icon.png
+
+# Uygulama ikonu üretim ayarları — `dart run flutter_launcher_icons` ile
+# android/ ve ios/ altındaki tüm ikon dosyaları bu görselden yeniden üretilir.
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/app_icon.png"
+  # Android 8+ uyarlanabilir (adaptive) ikon: ön plan aynı görsel, arka
+  # plan uygulamanın lacivert temasıyla aynı renk.
+  adaptive_icon_background: "#1F2D45"
+  adaptive_icon_foreground: "assets/icon/app_icon.png"
