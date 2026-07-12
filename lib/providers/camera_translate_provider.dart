@@ -64,10 +64,12 @@ class CameraTranslateProvider extends ChangeNotifier {
   bool get isBusy => _isBusy;
   String? get error => _error;
 
-  /// Fotoğraf çeker, metni tanır ve her blok için çeviri yapar.
+  /// Fotoğraf çeker (kameradan ya da [imageSource] galeriden ise
+  /// galeriden), metni tanır ve her blok için çeviri yapar.
   Future<void> capture({
     required AppLanguage source,
     required AppLanguage target,
+    ImageSource imageSource = ImageSource.camera,
   }) async {
     final script = scriptFor(source);
     if (script == null) {
@@ -77,7 +79,7 @@ class CameraTranslateProvider extends ChangeNotifier {
       return;
     }
 
-    final photo = await _picker.pickImage(source: ImageSource.camera);
+    final photo = await _picker.pickImage(source: imageSource);
     if (photo == null) return; // Kullanıcı iptal etti.
 
     _isBusy = true;

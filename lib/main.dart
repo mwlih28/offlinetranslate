@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
+import 'models/history_entry.dart';
 import 'providers/camera_translate_provider.dart';
 import 'providers/favorites_provider.dart';
+import 'providers/history_provider.dart';
 import 'providers/translation_provider.dart';
 import 'screens/main_shell.dart';
 import 'theme/app_colors.dart';
@@ -19,9 +21,11 @@ void main() {
 
 /// UYGULAMANIN KÖKÜ.
 ///
-/// [MultiProvider] iki durum katmanını widget ağacının en üstüne koyar:
-///  - [TranslationProvider]: çeviri + dil paketi durumu
+/// [MultiProvider] durum katmanlarını widget ağacının en üstüne koyar:
+///  - [TranslationProvider]: çeviri + dil paketi + TTS/STT durumu
 ///  - [FavoritesProvider]: kalıcı favori çeviriler
+///  - [HistoryProvider]: yapılan TÜM çevirilerin otomatik kaydı
+///  - [CameraTranslateProvider]: kamera ile çeviri (fotoğraf + OCR)
 ///
 /// Tema: koyu lacivert zemin + beyaz kartlar + turuncu vurgu
 /// (tasarım paleti lib/theme/app_colors.dart'tadır).
@@ -69,10 +73,34 @@ class OfflineTranslateApp extends StatelessWidget {
       ),
     );
 
+    // Geçmiş, TranslationProvider'ın oluşturulma anında (create: closure'ı
+    // içinde) referans alabilmesi için burada, MultiProvider'dan önce
+    // yaratılır — iki Provider arasında ayrı bir bağımlılık sınıfı
+    // (ör. ProxyProvider) kurmadan basitçe kablolamayı sağlar.
+    final historyProvider = HistoryProvider();
+
     return MultiProvider(
       providers: [
+        // Geçmiş cihaz depolamasından yüklenir.
+        ChangeNotifierProvider.value(value: historyProvider),
         // Provider oluşturulur oluşturulmaz model durumlarını kontrol eder.
-        ChangeNotifierProvider(create: (_) => TranslationProvider()),
+        ChangeNotifierProvider(
+          create: (_) => TranslationProvider()
+            ..onTranslated = ({
+              required sourceCode,
+              required targetCode,
+              required sourceText,
+              required translatedText,
+            }) {
+              historyProvider.add(HistoryEntry(
+                sourceCode: sourceCode,
+                targetCode: targetCode,
+                sourceText: sourceText,
+                translatedText: translatedText,
+                createdAt: DateTime.now(),
+              ));
+            },
+        ),
         // Favoriler cihaz depolamasından yüklenir.
         ChangeNotifierProvider(create: (_) => FavoritesProvider()),
         // Kamera ile çeviri (fotoğraf + OCR + bindirme) durumu.

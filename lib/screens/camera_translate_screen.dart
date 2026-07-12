@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../models/language.dart';
@@ -100,12 +101,33 @@ class _CameraBody extends StatelessWidget {
             if (camera.isBusy)
               const CircularProgressIndicator(color: kAccentOrange)
             else
-              PrimaryButton(
-                icon: Icons.camera_alt,
-                label: 'Fotoğraf Çek',
-                onPressed: () => camera.capture(
-                  source: translation.sourceLanguage,
-                  target: translation.targetLanguage,
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: PrimaryButton(
+                        icon: Icons.camera_alt,
+                        label: 'Fotoğraf Çek',
+                        onPressed: () => camera.capture(
+                          source: translation.sourceLanguage,
+                          target: translation.targetLanguage,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _SecondaryButton(
+                        icon: Icons.photo_library_outlined,
+                        label: 'Galeriden Seç',
+                        onPressed: () => camera.capture(
+                          source: translation.sourceLanguage,
+                          target: translation.targetLanguage,
+                          imageSource: ImageSource.gallery,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             if (camera.error != null) ...[
@@ -157,6 +179,56 @@ class _CameraBody extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// İkincil (turuncu dolgu olmayan) aksiyon butonu — "Galeriden Seç" gibi
+/// birincil olmayan aksiyonlar için [PrimaryButton]'ın soluk eşleniği.
+class _SecondaryButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onPressed;
+
+  const _SecondaryButton({
+    required this.icon,
+    required this.label,
+    this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(24),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.white24),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 18, color: Colors.white),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

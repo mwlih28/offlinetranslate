@@ -6,6 +6,7 @@ import 'package:google_mlkit_translation/google_mlkit_translation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/language.dart';
+import '../services/language_id_service.dart';
 import '../services/speech_service.dart';
 import '../services/translation_service.dart';
 import '../services/tts_service.dart';
@@ -34,16 +35,30 @@ class TranslationProvider extends ChangeNotifier {
   final TranslationService _service;
   final TtsService _tts;
   final SpeechService _speech;
+  final LanguageIdService _languageId;
 
   static const _sttNoticeShownKey = 'stt_notice_shown';
+
+  /// Başarılı her çeviriden sonra çağrılır (Geçmiş sekmesine kaydetmek
+  /// için). Provider'lar arasında doğrudan bağımlılık kurmamak amacıyla
+  /// basit bir geri çağırma (callback) kullanılıyor — bu Provider'ın
+  /// Geçmiş'in NASIL saklandığını bilmesine gerek kalmıyor.
+  void Function({
+    required String sourceCode,
+    required String targetCode,
+    required String sourceText,
+    required String translatedText,
+  })? onTranslated;
 
   TranslationProvider({
     TranslationService? service,
     TtsService? ttsService,
     SpeechService? speechService,
+    LanguageIdService? languageIdService,
   })  : _service = service ?? TranslationService(),
         _tts = ttsService ?? TtsService(),
-        _speech = speechService ?? SpeechService() {
+        _speech = speechService ?? SpeechService(),
+        _languageId = languageIdService ?? LanguageIdService() {
     // Kullanıcı yazdıkça çeviriyi otomatik tetiklemek için
     // TextField controller'ını dinliyoruz.
     textController.addListener(_onTextChanged);
@@ -102,6 +117,9 @@ class TranslationProvider extends ChangeNotifier {
   /// Mikrofon şu anda dinliyor mu?
   bool _isListening = false;
 
+  /// Kaynak dil, yazılan metne göre otomatik mi algılanıyor?
+  bool _autoDetectSource = false;
+
   // ---------------------------------------------------------------------------
   // GETTER'LAR (UI bu değerleri okur)
   // ---------------------------------------------------------------------------
@@ -113,6 +131,7 @@ class TranslationProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   bool get isSpeaking => _isSpeaking;
   bool get isListening => _isListening;
+  bool get autoDetectSource => _autoDetectSource;
 
   /// Verilen dilin model durumu.
   ModelStatus statusOf(AppLanguage language) =>
@@ -132,14 +151,34 @@ class TranslationProvider extends ChangeNotifier {
   // ---------------------------------------------------------------------------
 
   /// Kaynak dili değiştirir. Yeni dil hedef dille aynıysa dilleri takas eder.
+  ///
+  /// Kullanıcı dili ELLE seçtiği için otomatik dil algılama kapatılır
+  /// (aksi hâlde bir sonraki çeviri, kullanıcının seçimini geçersiz kılıp
+  /// tekrar otomatik algılanan dile dönerdi).
   void setSourceLanguage(AppLanguage language) {
-    if (language == _sourceLanguage) return;
+    final wasAutoDetect = _autoDetectSource;
+    _autoDetectSource = false;
+
+    if (language == _sourceLanguage) {
+      if (wasAutoDetect) notifyListeners();
+      return;
+    }
     if (language == _targetLanguage) {
       swapLanguages();
       return;
     }
     _sourceLanguage = language;
     _afterLanguageChange();
+  }
+
+  /// Kaynak dilin, yazılan metne göre otomatik algılanıp algılanmayacağını
+  /// ayarlar (Google Çeviri'deki "Dili Algıla" özelliği gibi). Açıldığında
+  /// mevcut metin hemen yeniden değerlendirilir.
+  void setAutoDetectSource(bool value) {
+    if (_autoDetectSource == value) return;
+    _autoDetectSource = value;
+    notifyListeners();
+    if (value) _scheduleTranslation();
   }
 
   /// Hedef dili değiştirir. Yeni dil kaynak dille aynıysa dilleri takas eder.
@@ -157,6 +196,9 @@ class TranslationProvider extends ChangeNotifier {
   /// Ayrıca mevcut çeviri sonucunu kaynak metin alanına taşır,
   /// böylece kullanıcı ters yönde çeviriye kaldığı yerden devam eder.
   void swapLanguages() {
+    // Manuel bir dil işlemi olduğu için otomatik algılama kapatılır.
+    _autoDetectSource = false;
+
     final temp = _sourceLanguage;
     _sourceLanguage = _targetLanguage;
     _targetLanguage = temp;
@@ -224,11 +266,35 @@ class TranslationProvider extends ChangeNotifier {
       return;
     }
 
-    // Modeller hazır değilse çeviri yapılamaz (banner kullanıcıyı uyarır).
-    if (!isReadyToTranslate) return;
-
     // Bu isteğe bir numara ver; işlem bitince hâlâ güncel istek mi diye bak.
     final myRequestId = ++_requestId;
+
+    // Otomatik dil algılama açıksa, çevirmeden ÖNCE kaynak dili metne göre
+    // güncelle — bu, mevcut model indirme/banner akışını DEĞİŞTİRMEDEN
+    // yeniden kullanır (algılanan dilin modeli inmemişse banner normal
+    // şekilde devreye girer, sanki kullanıcı elle seçmiş gibi).
+    if (_autoDetectSource && text.length >= 3) {
+      try {
+        final code = await _languageId.identify(text);
+        if (myRequestId != _requestId) return; // Bu arada yeni istek geldi.
+
+        if (code != null) {
+          final normalized = code.split('-').first.toLowerCase();
+          final detected = appLanguageFromBcp(normalized);
+          if (detected != null &&
+              detected != _sourceLanguage &&
+              detected != _targetLanguage) {
+            _sourceLanguage = detected;
+            notifyListeners();
+          }
+        }
+      } catch (_) {
+        // Algılama başarısız olursa mevcut kaynak dille sessizce devam et.
+      }
+    }
+
+    // Modeller hazır değilse çeviri yapılamaz (banner kullanıcıyı uyarır).
+    if (!isReadyToTranslate) return;
 
     _isTranslating = true;
     _errorMessage = null;
@@ -245,6 +311,12 @@ class TranslationProvider extends ChangeNotifier {
       if (myRequestId != _requestId) return;
 
       _translatedText = result;
+      onTranslated?.call(
+        sourceCode: _sourceLanguage.bcpCode,
+        targetCode: _targetLanguage.bcpCode,
+        sourceText: text,
+        translatedText: result,
+      );
     } catch (e) {
       if (myRequestId != _requestId) return;
       _errorMessage = 'Çeviri sırasında bir hata oluştu: $e';
@@ -452,6 +524,7 @@ class TranslationProvider extends ChangeNotifier {
     _service.dispose(); // Native ML Kit kaynaklarını serbest bırak.
     _tts.dispose();
     _speech.stop();
+    _languageId.dispose();
     super.dispose();
   }
 }

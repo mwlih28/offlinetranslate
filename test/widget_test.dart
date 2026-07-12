@@ -69,4 +69,32 @@ void main() {
 
     expect(find.text('Henüz favori yok'), findsOneWidget);
   });
+
+  testWidgets('Geçmiş simgesine basınca Geçmiş ekranı açılır ve boş durumu gösterir',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(const OfflineTranslateApp());
+    await tester.pump(const Duration(milliseconds: 1000));
+
+    await tester.tap(find.byIcon(Icons.history));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Geçmiş'), findsOneWidget);
+    expect(find.text('Henüz geçmiş yok'), findsOneWidget);
+  });
+
+  testWidgets('Otomatik dil algılama anahtarı mevcut ve açılabiliyor',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(const OfflineTranslateApp());
+    await tester.pump(const Duration(milliseconds: 1000));
+
+    final context = tester.element(find.byType(Scaffold).first);
+    final provider = context.read<TranslationProvider>();
+
+    expect(provider.autoDetectSource, isFalse);
+
+    await tester.tap(find.byType(Switch));
+    await tester.pump();
+
+    expect(provider.autoDetectSource, isTrue);
+  });
 }

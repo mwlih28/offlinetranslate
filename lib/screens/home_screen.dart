@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/translation_provider.dart';
+import '../widgets/auto_detect_toggle.dart';
 import '../widgets/language_selector.dart';
 import '../widgets/model_download_banner.dart';
 import '../widgets/offline_badge.dart';
 import '../widgets/source_text_field.dart';
 import '../widgets/translation_result_card.dart';
+import 'history_screen.dart';
 
 /// ÇEVİRİ SEKMESİ (ana ekran).
 ///
@@ -78,25 +80,49 @@ class _HomeScreenState extends State<HomeScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 1) Başlık
+            // 1) Başlık + Geçmiş kısayolu
             _staggered(
               0,
-              const Padding(
-                padding: EdgeInsets.fromLTRB(4, 4, 4, 18),
-                child: Text(
-                  'Offline Çeviri',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.3,
-                  ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 4, 4, 18),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Offline Çeviri',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Geçmiş',
+                      icon: const Icon(Icons.history, color: Colors.white),
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const HistoryScreen(),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
 
-            // 2) Dil seçimi: [Kaynak] ⇄ [Hedef]
-            _staggered(1, const LanguageSelector()),
+            // 2) Dil seçimi: [Kaynak] ⇄ [Hedef] + otomatik algılama anahtarı
+            _staggered(
+              1,
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  LanguageSelector(),
+                  AutoDetectToggle(),
+                ],
+              ),
+            ),
 
             // 3) Model eksikse indirme uyarısı + "İndir" butonu
             _staggered(2, const ModelDownloadBanner()),

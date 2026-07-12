@@ -59,6 +59,13 @@ dependencies:
   # Çevirinin kendisi her zaman offline kalır.
   speech_to_text: ^7.4.0
 
+  # Yazılan/tanınan metnin dilini otomatik algılar (cihaz üzerinde, küçük
+  # gömülü model — ayrıca indirme gerektirmez). NOT: 0.14.0'a YÜKSELTMEYİN —
+  # diğer ML Kit paketlerindeki AYNI risk deseni: birkaç gün önce
+  # yayınlandı (7 Tem 2026), muhtemelen aynı riskli yeniden yazım. 0.13.1
+  # (öncesi) kullanılıyor.
+  google_mlkit_language_id: ^0.13.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
