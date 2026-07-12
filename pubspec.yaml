@@ -40,6 +40,25 @@ dependencies:
   # Çeviri sonucunu diğer uygulamalarla paylaşma (sistem paylaşım menüsü).
   share_plus: ^13.2.0
 
+  # Google ML Kit Metin Tanıma (OCR) — kamera ile çeviri için.
+  # NOT: 0.16.0'a YÜKSELTMEYİN — google_mlkit_translation'daki 0.14.0 ile
+  # AYNI risk deseni: birkaç gün önce yayınlanan sürüm Android/iOS tarafını
+  # Java→Kotlin / ObjC→Swift olarak tamamen yeniden yazdı. 0.15.1
+  # (yeniden yazımdan ÖNCEKİ son sürüm) kullanılıyor.
+  google_mlkit_text_recognition: ^0.15.1
+
+  # Kamera ile fotoğraf çekme (sistem kamera uygulamasını kullanır).
+  image_picker: ^1.2.3
+
+  # Çeviriyi sesli okuma — cihazın kendi TTS motorunu kullanır (offline).
+  flutter_tts: ^4.2.5
+
+  # Sesle metin yazma. NOT: Bazı cihaz/OS sürümlerinde konuşma tanıma
+  # internet gerektirebilir (Apple'ın kendi belgeleri "network-based
+  # service" diyor) — bu, uygulamada kullanıcıya açıkça belirtiliyor.
+  # Çevirinin kendisi her zaman offline kalır.
+  speech_to_text: ^7.4.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

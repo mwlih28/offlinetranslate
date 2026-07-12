@@ -127,8 +127,56 @@ class _SourceTextFieldState extends State<SourceTextField> {
               },
             ),
           ),
+
+          // Sağ alt (temizle butonunun solunda): mikrofon butonu —
+          // dinlerken turuncu renge ve dolu ikona döner.
+          Positioned(
+            right: 48,
+            bottom: 6,
+            child: IconButton(
+              tooltip: provider.isListening ? 'Dinlemeyi durdur' : 'Sesle yaz',
+              color: provider.isListening ? kAccentOrange : kInkMuted,
+              icon: Icon(provider.isListening ? Icons.mic : Icons.mic_none),
+              onPressed: () => _toggleListening(context, provider),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  Future<void> _toggleListening(
+    BuildContext context,
+    TranslationProvider provider,
+  ) async {
+    if (provider.isListening) {
+      await provider.stopListening();
+      return;
+    }
+
+    if (await provider.shouldShowSttNotice()) {
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Sesle yazma hakkında'),
+          content: const Text(
+            'Sesle yazma özelliği, cihazınıza ve dile bağlı olarak bazen '
+            'internet bağlantısı kullanabilir. Çevirinin kendisi her zaman '
+            'internetsiz çalışmaya devam eder.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Anladım'),
+            ),
+          ],
+        ),
+      );
+      await provider.markSttNoticeShown();
+    }
+
+    if (!context.mounted) return;
+    await provider.startListening();
   }
 }

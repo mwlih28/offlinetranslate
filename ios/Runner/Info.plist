@@ -26,6 +26,14 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Fotoğraf çekerek metni çevirebilmek için kameraya erişim gerekiyor.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Galerinizden fotoğraf seçerek metni çevirebilmek için erişim gerekiyor.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Sesli çeviri yapabilmek için mikrofona erişim gerekiyor.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Söylediklerinizi metne çevirip tercüme edebilmek için konuşma tanımaya erişim gerekiyor.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

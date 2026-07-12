@@ -1,3 +1,4 @@
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:google_mlkit_translation/google_mlkit_translation.dart';
 
 /// Uygulamada desteklenen bir dili temsil eden model sınıfı.
@@ -65,3 +66,47 @@ AppLanguage? appLanguageFromBcp(String code) {
   }
   return null;
 }
+
+/// Verilen dilin metnini görüntüden okumak (OCR) için hangi ML Kit
+/// script tanıyıcısının kullanılacağını belirler.
+///
+/// ML Kit'in on-device metin tanıma motoru sadece 5 script'i destekler:
+/// Latin, Çince, Japonca, Korece, Devanagari. **Arapça ve Rusça (Kiril)
+/// script'i desteklenmiyor** — bu diller kaynak dil olarak seçiliyse
+/// kamera ile çeviri özelliği kullanılamaz (`null` döner).
+TextRecognitionScript? scriptFor(AppLanguage lang) {
+  switch (lang.mlkitLanguage) {
+    case TranslateLanguage.chinese:
+      return TextRecognitionScript.chinese;
+    case TranslateLanguage.japanese:
+      return TextRecognitionScript.japanese;
+    case TranslateLanguage.korean:
+      return TextRecognitionScript.korean;
+    case TranslateLanguage.arabic:
+    case TranslateLanguage.russian:
+      return null;
+    default:
+      // Türkçe, İngilizce, Almanca, Fransızca, İspanyolca, İtalyanca,
+      // Portekizce — hepsi Latin alfabesi kullanır.
+      return TextRecognitionScript.latin;
+  }
+}
+
+/// Sesli okuma (TTS) ve sesle yazma (STT) motorlarının beklediği
+/// BCP-47 yerel ayar (locale) kodu — sadece dil kodu yetmez, bölge de
+/// gerekir (ör. "tr" değil "tr-TR"). Her iki servis de aynı sözlüğü
+/// paylaşır.
+const Map<String, String> ttsLocaleByBcp = {
+  'tr': 'tr-TR',
+  'en': 'en-US',
+  'de': 'de-DE',
+  'fr': 'fr-FR',
+  'es': 'es-ES',
+  'it': 'it-IT',
+  'ru': 'ru-RU',
+  'ar': 'ar-SA',
+  'ja': 'ja-JP',
+  'ko': 'ko-KR',
+  'zh': 'zh-CN',
+  'pt': 'pt-PT',
+};

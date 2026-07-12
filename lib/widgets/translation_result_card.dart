@@ -112,10 +112,11 @@ class TranslationResultCard extends StatelessWidget {
                   ),
                 ),
 
-                // Aksiyon satırı: favori + kopyala + paylaş
+                // Aksiyon satırı: sesli oku + favori + kopyala + paylaş
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
+                    const _SpeakButton(),
                     _FavoriteButton(result: result),
                     _CopyButton(text: result),
                     _ShareButton(text: result),
@@ -126,6 +127,27 @@ class TranslationResultCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Sesli okuma butonu: mevcut çeviri sonucunu cihazın TTS motoruyla
+/// seslendirir; seslendirme sürerken ikon dolu hoparlöre döner.
+class _SpeakButton extends StatelessWidget {
+  const _SpeakButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<TranslationProvider>();
+    final text = provider.translatedText;
+
+    return IconButton(
+      tooltip: 'Sesli oku',
+      color: kInkMuted,
+      icon: Icon(
+        provider.isSpeaking ? Icons.volume_up : Icons.volume_up_outlined,
+      ),
+      onPressed: text.isEmpty ? null : () => provider.speakResult(),
     );
   }
 }

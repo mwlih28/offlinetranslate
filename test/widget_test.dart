@@ -37,6 +37,7 @@ void main() {
     expect(find.text('İndirilenler'), findsOneWidget);
     expect(find.text('Favoriler'), findsOneWidget);
     expect(find.text('Ayarlar'), findsOneWidget);
+    expect(find.text('Kamera'), findsOneWidget);
   });
 
   testWidgets('Dil takas butonuna basınca kaynak/hedef diller yer değiştirir',

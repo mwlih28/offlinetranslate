@@ -3,9 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:google_mlkit_translation/google_mlkit_translation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/language.dart';
+import '../services/speech_service.dart';
 import '../services/translation_service.dart';
+import '../services/tts_service.dart';
 
 /// Bir dil modelinin cihazdaki indirilme durumu.
 enum ModelStatus {
@@ -29,12 +32,28 @@ enum ModelStatus {
 /// UI, ML Kit'e asla doğrudan dokunmaz — her şey bu köprü üzerinden geçer.
 class TranslationProvider extends ChangeNotifier {
   final TranslationService _service;
+  final TtsService _tts;
+  final SpeechService _speech;
 
-  TranslationProvider({TranslationService? service})
-      : _service = service ?? TranslationService() {
+  static const _sttNoticeShownKey = 'stt_notice_shown';
+
+  TranslationProvider({
+    TranslationService? service,
+    TtsService? ttsService,
+    SpeechService? speechService,
+  })  : _service = service ?? TranslationService(),
+        _tts = ttsService ?? TtsService(),
+        _speech = speechService ?? SpeechService() {
     // Kullanıcı yazdıkça çeviriyi otomatik tetiklemek için
     // TextField controller'ını dinliyoruz.
     textController.addListener(_onTextChanged);
+
+    // TTS gerçekten konuşmayı bitirdiğinde (ya da iptal/hata olduğunda)
+    // isSpeaking durumunu kapat.
+    _tts.onFinished = () {
+      _isSpeaking = false;
+      notifyListeners();
+    };
 
     // Açılışta tüm desteklenen dillerin model durumlarını kontrol et.
     refreshAllModelStatuses();
@@ -77,6 +96,12 @@ class TranslationProvider extends ChangeNotifier {
   /// önlemek için istek sayacı.
   int _requestId = 0;
 
+  /// Çeviri sonucu şu anda sesli okunuyor mu?
+  bool _isSpeaking = false;
+
+  /// Mikrofon şu anda dinliyor mu?
+  bool _isListening = false;
+
   // ---------------------------------------------------------------------------
   // GETTER'LAR (UI bu değerleri okur)
   // ---------------------------------------------------------------------------
@@ -86,6 +111,8 @@ class TranslationProvider extends ChangeNotifier {
   String get translatedText => _translatedText;
   bool get isTranslating => _isTranslating;
   String? get errorMessage => _errorMessage;
+  bool get isSpeaking => _isSpeaking;
+  bool get isListening => _isListening;
 
   /// Verilen dilin model durumu.
   ModelStatus statusOf(AppLanguage language) =>
@@ -230,6 +257,75 @@ class TranslationProvider extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------------------
+  // SESLİ OKUMA (TTS)
+  // ---------------------------------------------------------------------------
+
+  /// Çeviri sonucunu hedef dilde sesli okur.
+  Future<void> speakResult() async {
+    if (_translatedText.isEmpty) return;
+    _isSpeaking = true;
+    notifyListeners();
+    try {
+      await _tts.speak(text: _translatedText, bcpCode: _targetLanguage.bcpCode);
+    } catch (e) {
+      _isSpeaking = false;
+      _errorMessage = 'Sesli okuma başarısız: $e';
+      notifyListeners();
+    }
+    // NOT: _isSpeaking = false ataması burada YAPILMAZ — gerçek bitiş anı
+    // constructor'da bağlanan _tts.onFinished callback'i ile belirlenir
+    // (speak() Future'ı ses kuyruğa alınır alınmaz tamamlanır, konuşma
+    // bitince değil).
+  }
+
+  // ---------------------------------------------------------------------------
+  // SESLE YAZMA (STT)
+  // ---------------------------------------------------------------------------
+
+  /// İlk mikrofon kullanımında bir kez gösterilecek offline-dürüstlüğü
+  /// uyarısının daha önce gösterilip gösterilmediğini kontrol eder.
+  Future<bool> shouldShowSttNotice() async {
+    final prefs = await SharedPreferences.getInstance();
+    return !(prefs.getBool(_sttNoticeShownKey) ?? false);
+  }
+
+  /// Yukarıdaki uyarının bir daha gösterilmemesi için işaretler.
+  Future<void> markSttNoticeShown() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_sttNoticeShownKey, true);
+  }
+
+  /// Mikrofonla dinlemeye başlar; tanınan söz [textController]'a yazılır —
+  /// bu, mevcut debounce+otomatik çeviri akışını DEĞİŞTİRMEDEN tetikler.
+  Future<void> startListening() async {
+    final available = await _speech.initialize();
+    if (!available) {
+      _errorMessage = 'Mikrofon kullanılamıyor. Cihaz ayarlarından mikrofon '
+          'iznini kontrol edin.';
+      notifyListeners();
+      return;
+    }
+
+    _isListening = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    await _speech.listen(
+      localeId: ttsLocaleByBcp[_sourceLanguage.bcpCode] ?? 'en-US',
+      onResult: (text) {
+        textController.text = text;
+      },
+    );
+  }
+
+  /// Dinlemeyi durdurur.
+  Future<void> stopListening() async {
+    await _speech.stop();
+    _isListening = false;
+    notifyListeners();
+  }
+
+  // ---------------------------------------------------------------------------
   // MODEL YÖNETİMİ (UI'nın çağırdığı metotlar)
   // ---------------------------------------------------------------------------
 
@@ -354,6 +450,8 @@ class TranslationProvider extends ChangeNotifier {
     textController.removeListener(_onTextChanged);
     textController.dispose();
     _service.dispose(); // Native ML Kit kaynaklarını serbest bırak.
+    _tts.dispose();
+    _speech.stop();
     super.dispose();
   }
 }

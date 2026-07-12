@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/language.dart';
 import '../providers/translation_provider.dart';
 import '../theme/app_colors.dart';
+import 'camera_translate_screen.dart';
 import 'downloads_screen.dart';
 import 'favorites_screen.dart';
 import 'home_screen.dart';
@@ -43,6 +44,7 @@ class _MainShellState extends State<MainShell> {
           FavoritesScreen(
               onOpenTranslate: () => setState(() => _index = 0)),
           const SettingsScreen(),
+          const CameraTranslateScreen(),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -79,6 +81,11 @@ class _MainShellState extends State<MainShell> {
             icon: Icon(Icons.settings_outlined),
             selectedIcon: Icon(Icons.settings),
             label: 'Ayarlar',
+          ),
+          const NavigationDestination(
+            icon: Icon(Icons.camera_alt_outlined),
+            selectedIcon: Icon(Icons.camera_alt),
+            label: 'Kamera',
           ),
         ],
       ),

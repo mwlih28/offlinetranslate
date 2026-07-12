@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
+import 'providers/camera_translate_provider.dart';
 import 'providers/favorites_provider.dart';
 import 'providers/translation_provider.dart';
 import 'screens/main_shell.dart';
@@ -74,6 +75,8 @@ class OfflineTranslateApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => TranslationProvider()),
         // Favoriler cihaz depolamasından yüklenir.
         ChangeNotifierProvider(create: (_) => FavoritesProvider()),
+        // Kamera ile çeviri (fotoğraf + OCR + bindirme) durumu.
+        ChangeNotifierProvider(create: (_) => CameraTranslateProvider()),
       ],
       child: MaterialApp(
         title: 'Offline Çeviri',

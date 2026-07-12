@@ -2,6 +2,8 @@
     <!-- SADECE dil paketlerinin ilk indirilmesi için gereklidir.
          Çevirinin kendisi tamamen offline çalışır. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Sesle yazma (STT) için mikrofon erişimi. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <application
         android:label="offlinetranslate"
@@ -44,6 +46,14 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- flutter_tts: cihazdaki metin okuma motorunu bulabilmek için. -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE"/>
+        </intent>
+        <!-- speech_to_text: cihazdaki konuşma tanıma servisini bulabilmek için. -->
+        <intent>
+            <action android:name="android.speech.RecognitionService"/>
         </intent>
     </queries>
 </manifest>
