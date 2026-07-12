@@ -43,6 +43,12 @@ android {
             // edilmiş sınıf adları görülerek doğrulandı). Bu satır
             // Flutter'ın varsayılanını ezip minifikasyonu tamamen kapatır.
             isMinifyEnabled = false
+            // Android, isShrinkResources=true iken isMinifyEnabled=false
+            // olmasına izin vermiyor ("Removing unused resources requires
+            // unused code shrinking to be turned on") — Flutter'ın eklentisi
+            // bunu da varsayılan olarak true yaptığından ikisini birlikte
+            // kapatmak gerekiyor.
+            isShrinkResources = false
         }
     }
 }
