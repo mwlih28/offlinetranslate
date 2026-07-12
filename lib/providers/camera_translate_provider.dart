@@ -3,9 +3,11 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../models/language.dart';
+import '../services/language_id_service.dart';
 import '../services/ocr_service.dart';
 import '../services/translation_service.dart';
 
@@ -35,21 +37,32 @@ class OverlayBlock {
 
 /// KAMERA İLE ÇEVİRİ — DURUM YÖNETİMİ
 ///
-/// Fotoğraf çekme (image_picker) → metin tanıma (OcrService) → her blok
-/// için çeviri (mevcut TranslationService) adımlarını yürütür. Yeni bir
-/// çeviri mantığı YAZILMAZ; mevcut `TranslationService.translate()` aynen
-/// yeniden kullanılır.
+/// Fotoğraf çekme (image_picker) → metin tanıma (OcrService, birden çok
+/// script denenerek) → dil algılama (LanguageIdService) → gerekirse model
+/// indirme → her blok için çeviri (mevcut TranslationService) adımlarını
+/// yürütür. Yeni bir çeviri mantığı YAZILMAZ; mevcut
+/// `TranslationService.translate()` aynen yeniden kullanılır.
+///
+/// Kaynak dil kullanıcıdan ÖNCEDEN İSTENMEZ: fotoğraftaki metnin script'i
+/// (Latin/Çince/Japonca/Korece) sırayla denenir, okunan metnin dili
+/// [LanguageIdService] ile tespit edilir. Çeviri sekmesindeki mevcut
+/// kaynak dil sadece bir İPUCU olarak kullanılır (script denemesine hangi
+/// script'ten başlanacağını hızlandırır, algılama başarısız olursa yedek
+/// olur) — Google Çeviri'nin kamera modundaki gibi.
 class CameraTranslateProvider extends ChangeNotifier {
   final OcrService _ocr;
   final TranslationService _translation;
+  final LanguageIdService _languageId;
   final ImagePicker _picker;
 
   CameraTranslateProvider({
     OcrService? ocrService,
     TranslationService? translationService,
+    LanguageIdService? languageIdService,
     ImagePicker? imagePicker,
   })  : _ocr = ocrService ?? OcrService(),
         _translation = translationService ?? TranslationService(),
+        _languageId = languageIdService ?? LanguageIdService(),
         _picker = imagePicker ?? ImagePicker();
 
   String? _imagePath;
@@ -57,6 +70,8 @@ class CameraTranslateProvider extends ChangeNotifier {
   List<OverlayBlock> _blocks = [];
   bool _isBusy = false;
   String? _error;
+  String? _statusMessage;
+  AppLanguage? _detectedSource;
 
   String? get imagePath => _imagePath;
   ui.Size? get imageIntrinsicSize => _imageIntrinsicSize;
@@ -64,28 +79,31 @@ class CameraTranslateProvider extends ChangeNotifier {
   bool get isBusy => _isBusy;
   String? get error => _error;
 
+  /// İşlem sürerken gösterilecek adım açıklaması (ör. "Dil algılanıyor...").
+  String? get statusMessage => _statusMessage;
+
+  /// Son çekilen fotoğrafta otomatik olarak algılanan kaynak dil.
+  AppLanguage? get detectedSource => _detectedSource;
+
   /// Fotoğraf çeker (kameradan ya da [imageSource] galeriden ise
-  /// galeriden), metni tanır ve her blok için çeviri yapar.
+  /// galeriden), metnin dilini otomatik algılar ve her blok için çeviri
+  /// yapar. [sourceHint], Çeviri sekmesindeki o anki seçili kaynak dildir —
+  /// hangi script'in önce deneneceğini hızlandırır ve algılama
+  /// başarısız olursa yedek kaynak dil olarak kullanılır.
   Future<void> capture({
-    required AppLanguage source,
     required AppLanguage target,
+    AppLanguage? sourceHint,
     ImageSource imageSource = ImageSource.camera,
   }) async {
-    final script = scriptFor(source);
-    if (script == null) {
-      _error = '${source.displayName} için kamera ile metin tanıma '
-          'desteklenmiyor.';
-      notifyListeners();
-      return;
-    }
-
     final photo = await _picker.pickImage(source: imageSource);
     if (photo == null) return; // Kullanıcı iptal etti.
 
     _isBusy = true;
     _error = null;
+    _statusMessage = 'Metin taranıyor...';
     _imagePath = photo.path;
     _blocks = [];
+    _detectedSource = null;
     notifyListeners();
 
     try {
@@ -97,7 +115,88 @@ class CameraTranslateProvider extends ChangeNotifier {
         frame.image.height.toDouble(),
       );
 
-      final recognized = await _ocr.recognize(photo.path, script);
+      // Hangi script'in denenceği: önce ipucu dilin script'i (varsa),
+      // ardından kalan desteklenen script'ler. İlk okunabilir sonucu
+      // veren kazanır — böylece fotoğraftaki gerçek dil, ipucu dille
+      // aynı script'te olmasa bile (ör. ipucu Türkçe ama fotoğraf
+      // Japonca) doğru okunabilir.
+      final hintScript = sourceHint == null ? null : scriptFor(sourceHint);
+      final scriptsToTry = <TextRecognitionScript>{
+        if (hintScript != null) hintScript,
+        TextRecognitionScript.latin,
+        TextRecognitionScript.chinese,
+        TextRecognitionScript.japanese,
+        TextRecognitionScript.korean,
+      };
+
+      RecognizedText? recognized;
+      for (final script in scriptsToTry) {
+        final result = await _ocr.recognize(photo.path, script);
+        if (result.text.trim().length >= 2) {
+          recognized = result;
+          break;
+        }
+      }
+
+      if (recognized == null || recognized.blocks.isEmpty) {
+        _error = 'Fotoğrafta okunabilir bir metin bulunamadı. Desteklenen '
+            'diller: Türkçe, İngilizce, Almanca, Fransızca, İspanyolca, '
+            'İtalyanca, Portekizce, Çince, Japonca, Korece.';
+        return;
+      }
+
+      // Okunan metnin dilini algıla (fotoğraf başına TEK bir kaynak dil
+      // varsayılır — gerçekçi kullanım genelde tek dilli bir belge/tabela).
+      _statusMessage = 'Dil algılanıyor...';
+      notifyListeners();
+
+      final rawCode = await _languageId.identify(recognized.text);
+      AppLanguage? source;
+      if (rawCode != null) {
+        source = appLanguageFromBcp(rawCode.split('-').first.toLowerCase());
+        if (source == null) {
+          _error = 'Algılanan dil ("$rawCode") şu an desteklenmiyor.';
+          return;
+        }
+      } else {
+        // Dil algılanamadıysa (metin çok kısa/belirsiz), ipucu dille
+        // devam et (en azından bir tahminle).
+        source = sourceHint;
+      }
+
+      if (source == null) {
+        _error = 'Metnin dili algılanamadı.';
+        return;
+      }
+      if (source == target) {
+        _error = 'Algılanan dil (${source.displayName}) hedef dille aynı. '
+            'Farklı bir hedef dil seçin.';
+        return;
+      }
+
+      _detectedSource = source;
+      notifyListeners();
+
+      // Algılanan dilin modeli cihazda yoksa otomatik indir (mevcut
+      // indirme mantığı reused ediliyor, sadece kamera akışından tetiklenir).
+      final hasModel = await _translation.isModelDownloaded(
+        source.mlkitLanguage,
+      );
+      if (!hasModel) {
+        _statusMessage = '${source.displayName} dil paketi indiriliyor...';
+        notifyListeners();
+        final downloaded = await _translation.downloadModel(
+          source.mlkitLanguage,
+        );
+        if (!downloaded) {
+          _error = '${source.displayName} dil paketi indirilemedi. '
+              'İnternet bağlantınızı kontrol edip tekrar deneyin.';
+          return;
+        }
+      }
+
+      _statusMessage = 'Çevriliyor...';
+      notifyListeners();
 
       // Yama renklerini fotoğrafın ham piksellerinden örnekleyebilmek için
       // görüntüyü bir kez RGBA byte dizisine çeviriyoruz.
@@ -141,6 +240,7 @@ class CameraTranslateProvider extends ChangeNotifier {
       _error = 'Fotoğraf işlenemedi: $e';
     } finally {
       _isBusy = false;
+      _statusMessage = null;
       notifyListeners();
     }
   }
@@ -151,6 +251,8 @@ class CameraTranslateProvider extends ChangeNotifier {
     _imageIntrinsicSize = null;
     _blocks = [];
     _error = null;
+    _statusMessage = null;
+    _detectedSource = null;
     notifyListeners();
   }
 
@@ -158,6 +260,7 @@ class CameraTranslateProvider extends ChangeNotifier {
   void dispose() {
     _ocr.dispose();
     _translation.dispose();
+    _languageId.dispose();
     super.dispose();
   }
 }

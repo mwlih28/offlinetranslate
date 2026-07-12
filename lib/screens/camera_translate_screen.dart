@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
-import '../models/language.dart';
 import '../providers/camera_translate_provider.dart';
 import '../providers/translation_provider.dart';
 import '../theme/app_colors.dart';
@@ -13,8 +12,11 @@ import '../widgets/primary_button.dart';
 /// KAMERA SEKMESİ: Fotoğraf çekip tanınan metnin ÜZERİNE çevirisini
 /// bindirir (Google Translate'in kamera modu gibi).
 ///
-/// Dil seçimini KENDİSİ yapmaz — mevcut [TranslationProvider]'ın seçili
-/// kaynak/hedef dilini kullanır (tekrarlı UI'dan kaçınmak için).
+/// Kaynak dili KENDİSİ SEÇTİRMEZ — fotoğraftaki metnin dili otomatik
+/// algılanır (bkz. [CameraTranslateProvider.capture]); Çeviri
+/// sekmesindeki o anki kaynak dil sadece bir hız ipucu/yedektir. Hedef
+/// dil ise mevcut [TranslationProvider]'dan okunur (tekrarlı UI'dan
+/// kaçınmak için).
 class CameraTranslateScreen extends StatelessWidget {
   const CameraTranslateScreen({super.key});
 
@@ -59,27 +61,17 @@ class _CameraBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Modeller hazır değilse fotoğraf çekmeye izin verme.
-    if (!translation.isReadyToTranslate) {
+    // Hedef dilin modeli hazır değilse fotoğraf çekmeye izin verme —
+    // kaynak dil artık otomatik algılandığı için (bkz. sınıf açıklaması)
+    // sadece hedef dilin modeli önceden bilinmesi gerekiyor.
+    if (translation.targetModelStatus != ModelStatus.downloaded) {
       return _InfoCard(
         icon: Icons.cloud_download_outlined,
-        title: 'Önce dil paketlerini indirin',
-        message: 'Kamera ile çeviri için ${translation.sourceLanguage.displayName} '
-            've ${translation.targetLanguage.displayName} dil paketlerinin '
-            'cihazda indirilmiş olması gerekir. Çeviri sekmesindeki "İndir" '
+        title: 'Önce hedef dil paketini indirin',
+        message: 'Kamera ile çeviri için ${translation.targetLanguage.displayName} '
+            'dil paketinin cihazda indirilmiş olması gerekir (kaynak dil '
+            'fotoğraftan otomatik algılanır). Çeviri sekmesindeki "İndir" '
             'butonunu kullanın.',
-      );
-    }
-
-    // Kaynak dilin script'i OCR tarafından desteklenmiyorsa (Arapça/Rusça).
-    if (scriptFor(translation.sourceLanguage) == null) {
-      return _InfoCard(
-        icon: Icons.info_outline,
-        title: 'Bu dil için kamera desteklenmiyor',
-        message: '${translation.sourceLanguage.displayName} metnini kamerayla '
-            'tanıma şu an desteklenmiyor. Desteklenen kaynak diller: Türkçe, '
-            'İngilizce, Almanca, Fransızca, İspanyolca, İtalyanca, '
-            'Portekizce, Çince, Japonca, Korece.',
       );
     }
 
@@ -92,14 +84,25 @@ class _CameraBody extends StatelessWidget {
                 size: 64, color: Colors.white.withValues(alpha: 0.6)),
             const SizedBox(height: 16),
             Text(
-              'Bir fotoğraf çekin, üzerindeki metnin çevirisi\n'
-              'doğrudan fotoğrafın üzerinde gösterilsin.',
+              'Bir fotoğraf çekin — metnin dili otomatik algılanır ve\n'
+              'çevirisi doğrudan fotoğrafın üzerinde gösterilir.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.white.withValues(alpha: 0.75)),
             ),
             const SizedBox(height: 24),
             if (camera.isBusy)
-              const CircularProgressIndicator(color: kAccentOrange)
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(color: kAccentOrange),
+                  const SizedBox(height: 10),
+                  Text(
+                    camera.statusMessage ?? 'İşleniyor...',
+                    style:
+                        TextStyle(color: Colors.white.withValues(alpha: 0.75)),
+                  ),
+                ],
+              )
             else
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -110,7 +113,7 @@ class _CameraBody extends StatelessWidget {
                         icon: Icons.camera_alt,
                         label: 'Fotoğraf Çek',
                         onPressed: () => camera.capture(
-                          source: translation.sourceLanguage,
+                          sourceHint: translation.sourceLanguage,
                           target: translation.targetLanguage,
                         ),
                       ),
@@ -121,7 +124,7 @@ class _CameraBody extends StatelessWidget {
                         icon: Icons.photo_library_outlined,
                         label: 'Galeriden Seç',
                         onPressed: () => camera.capture(
-                          source: translation.sourceLanguage,
+                          sourceHint: translation.sourceLanguage,
                           target: translation.targetLanguage,
                           imageSource: ImageSource.gallery,
                         ),
@@ -145,6 +148,25 @@ class _CameraBody extends StatelessWidget {
 
     return Column(
       children: [
+        if (camera.detectedSource != null) ...[
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.auto_awesome, size: 14, color: kAccentOrange),
+              const SizedBox(width: 6),
+              Text(
+                'Algılanan dil: ${camera.detectedSource!.flag} '
+                '${camera.detectedSource!.displayName}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+        ],
         Expanded(
           child: ClipRRect(
             borderRadius: BorderRadius.circular(18),
@@ -159,7 +181,7 @@ class _CameraBody extends StatelessWidget {
               const CircularProgressIndicator(color: kAccentOrange),
               const SizedBox(height: 10),
               Text(
-                'Metin taranıyor ve çevriliyor...',
+                camera.statusMessage ?? 'İşleniyor...',
                 style: TextStyle(color: Colors.white.withValues(alpha: 0.75)),
               ),
             ],
