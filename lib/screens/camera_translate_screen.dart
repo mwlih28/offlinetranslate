@@ -293,34 +293,48 @@ class _OverlayedPhotoState extends State<_OverlayedPhoto>
             alignment: Alignment.center,
             padding: padding,
             decoration: BoxDecoration(
-              // Tam opak: altındaki orijinal metnin "hayalet" gibi
-              // görünmesini önler (önceki yarı-saydam sürüm bu yüzden
-              // kalabalık ve dağınık görünüyordu).
-              color: kNavy,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: kAccentOrange.withValues(alpha: 0.55),
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.35),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
+              // Sabit bir renk (ör. lacivert kutu) yerine, o bölgenin
+              // fotoğraftaki ORTALAMA rengiyle boyanır — orijinal metin
+              // kapanır ama yama, arka planla (kağıt/tabela/duvar) uyumlu
+              // olduğu için "yapıştırma" değil, ortama gömülü gibi durur.
+              color: block.patchColor,
+              borderRadius: BorderRadius.circular(3),
+            ),
+            // Google Lens/Translate tarzı: dolgu renkli yazı + zıt renkte
+            // ince anahat (stroke) — hem açık hem koyu yamalarda okunaklı.
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Text(
+                  block.translated,
+                  textAlign: TextAlign.center,
+                  maxLines: 6,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: fontSize,
+                    height: 1.15,
+                    foreground: Paint()
+                      ..style = PaintingStyle.stroke
+                      ..strokeWidth = fontSize / 7
+                      ..color = block.isPatchLight
+                          ? Colors.white
+                          : Colors.black.withValues(alpha: 0.65),
+                  ),
+                ),
+                Text(
+                  block.translated,
+                  textAlign: TextAlign.center,
+                  maxLines: 6,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: block.isPatchLight ? kInkDark : Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: fontSize,
+                    height: 1.15,
+                  ),
                 ),
               ],
-            ),
-            child: Text(
-              block.translated,
-              textAlign: TextAlign.center,
-              maxLines: 6,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: fontSize,
-                height: 1.15,
-              ),
             ),
           ),
         ),
